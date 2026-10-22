@@ -1,0 +1,37 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install, lint, build, test
+        run: |
+          # shortcut: passes trivially until the skeleton ticket adds the npm workspaces; remove this guard then
+          if [ ! -f package-lock.json ]; then echo "No package-lock.json yet, nothing to check"; exit 0; fi
+          npm ci
+          npm run lint --workspaces --if-present
+          npm run build --workspaces --if-present
+          npm test --workspaces --if-present
+
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          # no-op until the cloud-hosting ticket creates the Render service and adds this secret
+          if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"; exit 0; fi
+          curl -fsS -X POST "$HOOK"
