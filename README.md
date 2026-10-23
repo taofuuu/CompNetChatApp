@@ -2,6 +2,22 @@
 
 Computer Networks term project (socket programming): a multi-user Chat App with Private Rooms and Groups, built with NestJS, React and Socket.IO over WebSocket only.
 
+## Running it
+
+Needs Node 22 or later. Three npm workspaces: `server` (NestJS), `client` (React + Vite) and `shared` (the socket event names and payload types both use).
+
+```bash
+npm install
+```
+
+Copy `server/.env.example` to `server/.env` and put the MongoDB connection string in it. Never commit `.env`.
+
+**Development**, in two terminals: `npm run dev -w server`, then `npm run dev -w client` and open the address Vite prints. Vite forwards the socket connection to the server.
+
+**Demo or another laptop**: `npm run build`, then `npm start`. The server serves the page and the socket connection on one port (3000, or `PORT`). Other laptops on the same network open `http://<this laptop's IP>:3000`.
+
+**Checks**: `npm run lint`, `npm run build` and `npm test`, the same as CI. The server's tests boot the whole app against an in-memory MongoDB and connect real Clients; `server/test/app.ts` has the `connectAsUser` helper to reuse.
+
 ## Where decisions live
 
 - [GLOSSARY.md](GLOSSARY.md): the words we use. Use these names in code, issues and prompts.

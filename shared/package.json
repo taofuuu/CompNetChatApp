@@ -1,0 +1,8 @@
+{
+  "name": "@compnet/shared",
+  "private": true,
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "oxlint"
+  }
+}
