@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { OnlineListGateway } from './online-list.gateway';
+import { OnlineListModule } from './online-list/online-list.module';
 
 @Module({
   imports: [
@@ -12,7 +12,7 @@ import { OnlineListGateway } from './online-list.gateway';
         return { uri };
       },
     }),
+    OnlineListModule,
   ],
-  providers: [OnlineListGateway],
 })
 export class AppModule {}

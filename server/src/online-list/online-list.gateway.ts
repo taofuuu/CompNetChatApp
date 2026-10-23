@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import type { HandshakeAuth, ServerToClientEvents } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
+import { OnlineListService } from './online-list.service';
 
 type ChatServer = Server<DefaultEventsMap, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
 type ChatSocket = Socket<DefaultEventsMap, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
@@ -15,8 +16,8 @@ type ChatSocket = Socket<DefaultEventsMap, ServerToClientEvents, DefaultEventsMa
 @WebSocketGateway({ transports: ['websocket'] })
 export class OnlineListGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() private server: ChatServer;
-  /** Every Online User, keyed by their lowercase name. */
-  private readonly onlineUsers = new Map<string, { name: string; browserId: string; clients: number }>();
+
+  constructor(private readonly onlineList: OnlineListService) {}
 
   afterInit(server: ChatServer) {
     // Runs during the handshake: calling next with an Error refuses the connection, and the Client gets its message.
@@ -25,30 +26,24 @@ export class OnlineListGateway implements OnGatewayInit, OnGatewayConnection, On
       const name = typeof username === 'string' ? username.trim() : '';
       if (!name) return next(new Error('Enter a username.'));
       if (typeof browserId !== 'string' || !browserId) return next(new Error('Missing browser id.'));
-      const user = this.onlineUsers.get(name.toLowerCase());
-      // Only the browser that brought this User Online can add Clients to them.
-      if (user && browserId !== user.browserId) return next(new Error(`${user.name} is already Online.`));
-      socket.data = { username: user?.name ?? name, browserId };
+      const takenBy = this.onlineList.takenBy(name, browserId);
+      if (takenBy) return next(new Error(`${takenBy} is already Online.`));
+      socket.data = { username: name, browserId };
       next();
     });
   }
 
   handleConnection(socket: ChatSocket) {
-    const { username, browserId } = socket.data;
-    const user = this.onlineUsers.get(username.toLowerCase());
-    if (user) user.clients++;
-    else this.onlineUsers.set(username.toLowerCase(), { name: username, browserId, clients: 1 });
+    this.onlineList.addClient(socket.data.username, socket.data.browserId);
     this.sendOnlineList();
   }
 
   handleDisconnect(socket: ChatSocket) {
-    const key = socket.data.username.toLowerCase();
-    const user = this.onlineUsers.get(key);
-    if (user && --user.clients === 0) this.onlineUsers.delete(key);
+    this.onlineList.removeClient(socket.data.username);
     this.sendOnlineList();
   }
 
   private sendOnlineList() {
-    this.server.emit('onlineList', [...this.onlineUsers.values()].map((user) => user.name));
+    this.server.emit('onlineList', this.onlineList.names());
   }
 }
