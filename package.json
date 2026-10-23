@@ -1,0 +1,18 @@
+{
+  "name": "compnet-chat-app",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "start": "npm start -w server",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "oxlint": "^1.89.0"
+  }
+}
