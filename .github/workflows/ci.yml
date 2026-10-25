@@ -41,6 +41,6 @@ jobs:
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          # no-op until the cloud-hosting ticket creates the Render service and adds this secret
+          # forks don't have this secret, so skip there instead of failing
           if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_URL not set, skipping deploy"; exit 0; fi
           curl -fsS -X POST "$HOOK"
