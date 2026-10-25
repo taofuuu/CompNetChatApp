@@ -32,6 +32,10 @@ jobs:
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Records each deploy under the repo's Deployments, linking to the live app.
+    environment:
+      name: production
+      url: https://compnetchatapp.onrender.com
     steps:
       - name: Trigger Render deploy
         env:
