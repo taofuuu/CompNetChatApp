@@ -16,24 +16,29 @@ export interface TestClient {
   next<E extends keyof ServerToClientEvents>(event: E): Promise<Payload<E>>;
 }
 
-/** Boots the whole app on a free port against a fresh in-memory MongoDB. */
+// One in-memory MongoDB per test file, started on first use: starting mongod is the slow part.
+let mongo: Promise<MongoMemoryServer> | undefined;
+afterAll(async () => {
+  await (await mongo)?.stop();
+  mongo = undefined;
+});
+
+/** Boots the whole app on a free port against a fresh, empty database. */
 export async function startApp() {
-  const mongo = await MongoMemoryServer.create();
-  process.env.MONGODB_URI = mongo.getUri();
+  mongo ??= MongoMemoryServer.create();
+  process.env.MONGODB_URI = (await mongo).getUri(`test-${randomUUID()}`);
   const app: INestApplication = await NestFactory.create(AppModule, { logger: false });
   await app.listen(0);
   const url = `http://localhost:${(app.getHttpServer().address() as AddressInfo).port}`;
   const sockets: Socket[] = [];
+  const registered = new Set<string>();
 
   return {
     url,
+    app,
 
-    /**
-     * Connects a Client over WebSocket as the User `username`, the way the page does.
-     * Pass the same `browserId` to connect a second Client of the same User. Rejects with the server's reason.
-     */
-    connectAsUser(username: string, browserId: string = randomUUID()): Promise<TestClient> {
-      const auth: HandshakeAuth = { username, browserId };
+    /** Connects a Client over WebSocket with this handshake, the way the page does. Rejects with the server's reason. */
+    connect(auth: HandshakeAuth): Promise<TestClient> {
       const socket: Socket<ServerToClientEvents> = io(url, { transports: ['websocket'], auth, forceNew: true, reconnection: false });
       sockets.push(socket);
 
@@ -61,10 +66,19 @@ export async function startApp() {
       });
     },
 
+    /**
+     * Connects a Client as the User `username`: registers them the first time this app sees the name (ignoring case)
+     * and logs in after that, so calling it again adds another Client of the same User.
+     */
+    connectAsUser(username: string, password = 'secret'): Promise<TestClient> {
+      const mode = registered.has(username.toLowerCase()) ? 'login' : 'register';
+      registered.add(username.toLowerCase());
+      return this.connect({ mode, username, password });
+    },
+
     async close() {
       sockets.forEach((socket) => socket.disconnect());
       await app.close();
-      await mongo.stop();
     },
   };
 }
