@@ -1,11 +1,10 @@
-import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@compnet/shared';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
+import { freshDatabaseUri } from './mongo';
 
 type Payload<E extends keyof ServerToClientEvents> = Parameters<ServerToClientEvents[E]>[0];
 
@@ -16,17 +15,9 @@ export interface TestClient {
   next<E extends keyof ServerToClientEvents>(event: E): Promise<Payload<E>>;
 }
 
-// One in-memory MongoDB per test file, started on first use: starting mongod is the slow part.
-let mongo: Promise<MongoMemoryServer> | undefined;
-afterAll(async () => {
-  await (await mongo)?.stop();
-  mongo = undefined;
-});
-
 /** Boots the whole app on a free port against a fresh, empty database. */
 export async function startApp() {
-  mongo ??= MongoMemoryServer.create();
-  process.env.MONGODB_URI = (await mongo).getUri(`test-${randomUUID()}`);
+  process.env.MONGODB_URI = await freshDatabaseUri();
   let app: INestApplication;
   let url: string;
   let sockets: Socket[] = [];

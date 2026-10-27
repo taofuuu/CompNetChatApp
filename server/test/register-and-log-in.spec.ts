@@ -1,7 +1,10 @@
 import { getConnectionToken } from '@nestjs/mongoose';
 import type { Connection } from 'mongoose';
 import { io } from 'socket.io-client';
+import { UsersService } from '../src/users/users.service';
 import { startApp } from './app';
+
+// Registering and logging in over the socket handshake. The username and password rules themselves are in users.spec.ts.
 
 let app: Awaited<ReturnType<typeof startApp>>;
 beforeEach(async () => (app = await startApp()));
@@ -21,30 +24,24 @@ test('a registered User logs in with any case of their username and shows in the
   expect(await alice.next('onlineList')).toEqual(['Alice']);
 });
 
-test('registering a username already taken, ignoring case, is refused', async () => {
+test('a refused registration reaches the Client with its reason', async () => {
   await app.connect({ mode: 'register', username: 'Alice', password: 'secret' });
 
   await expect(app.connect({ mode: 'register', username: 'alice', password: 'other' })).rejects.toThrow('alice is already taken.');
 });
 
-test.each(['ab', 'has space', ''])('registering the username %p is refused by the name rule', async (username) => {
-  await expect(app.connect({ mode: 'register', username, password: 'secret' })).rejects.toThrow(
-    'A username is 3 to 20 letters, digits or underscores.',
-  );
-});
-
-test('registering with an empty password is refused', async () => {
-  await expect(app.connect({ mode: 'register', username: 'Alice', password: '' })).rejects.toThrow('Enter a password.');
-});
-
-test('logging in as a username nobody registered is refused', async () => {
-  await expect(app.connect({ mode: 'login', username: 'Nobody', password: 'secret' })).rejects.toThrow('Wrong username or password.');
-});
-
-test('logging in with the wrong password is refused', async () => {
+test('a refused log in reaches the Client with its reason', async () => {
   await app.connect({ mode: 'register', username: 'Alice', password: 'secret' });
 
   await expect(app.connect({ mode: 'login', username: 'Alice', password: 'Secret' })).rejects.toThrow('Wrong username or password.');
+});
+
+test('an unexpected server error refuses the handshake without revealing what went wrong', async () => {
+  jest.spyOn(app.app.get(UsersService), 'logIn').mockRejectedValue(new Error('connection to mongodb://internal:27017 lost'));
+
+  await expect(app.connect({ mode: 'login', username: 'Alice', password: 'secret' })).rejects.toThrow(
+    /^Something went wrong\. Try again\.$/,
+  );
 });
 
 test('one User can be logged in on several Clients at once and stays Online until the last one leaves', async () => {
@@ -61,12 +58,13 @@ test('one User can be logged in on several Clients at once and stays Online unti
 });
 
 // The only test that looks inside the database: what is stored there is the rule under test.
-test('a password sent in the handshake is kept only as a hash in the Users collection', async () => {
+test('a password sent in the handshake is kept only as a bcrypt hash, and nowhere else in the database', async () => {
   await app.connect({ mode: 'register', username: 'Alice', password: 'secret' });
 
   const connection = app.app.get<Connection>(getConnectionToken());
-  const stored = await connection.collection('users').find().toArray();
-  expect(stored).toEqual([expect.objectContaining({ username: 'Alice', passwordHash: expect.stringMatching(/^\$2b\$10\$/) })]);
+  expect(await connection.collection('users').find().toArray()).toEqual([
+    { _id: expect.anything(), __v: 0, username: 'Alice', usernameLower: 'alice', passwordHash: expect.stringMatching(/^\$2b\$10\$/) },
+  ]);
   // Nowhere in the database, not just not in Users: other collections (Groups, ...) exist alongside it.
   for (const { name } of await connection.db!.listCollections().toArray()) {
     expect(JSON.stringify(await connection.collection(name).find().toArray())).not.toContain('secret');
