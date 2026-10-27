@@ -30,7 +30,6 @@ export class GroupsService implements OnModuleInit {
       await this.groups.create({
         name: trimmed,
         key: trimmed.toLowerCase(),
-        creator,
         members: [creator],
         memberKeys: [creator.toLowerCase()],
       });

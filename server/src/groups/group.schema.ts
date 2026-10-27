@@ -10,9 +10,6 @@ export class Group {
   @Prop({ required: true, unique: true })
   key: string;
 
-  @Prop({ required: true })
-  creator: string;
-
   /** Every Member's name, in the order they joined: the creator first. */
   @Prop({ type: [String], required: true })
   members: string[];

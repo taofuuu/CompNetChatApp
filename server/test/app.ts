@@ -74,15 +74,11 @@ export async function startApp() {
         },
       };
 
-      // Connected once the Group list sent on connect has arrived too (left in the inbox for `next`):
-      // the server reads it from the database, and a test that closed the app before then would interrupt that read.
-      const hasGroupList = async () => {
-        while (!inbox.some((received) => received.event === 'groupList')) {
-          await new Promise<void>((wake) => waiting.push(wake));
-        }
-      };
+      // Connected once the Group list sent on connect has arrived too: the server reads it from the database,
+      // and a test that closed the app before then would interrupt that read.
+      // `onAny` listeners run first, so by now the list is already in the inbox for `next`.
       return new Promise((resolve, reject) => {
-        socket.once('connect', () => void hasGroupList().then(() => resolve(client)));
+        socket.once('groupList', () => resolve(client));
         socket.once('connect_error', reject);
       });
     },

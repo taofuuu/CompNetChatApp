@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -18,10 +19,22 @@ type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEven
 export class GroupsGateway implements OnGatewayConnection {
   @WebSocketServer() private server: ChatServer;
 
+  private readonly logger = new Logger(GroupsGateway.name);
+  /** Counts Group list reads, so a slow read that finishes after a newer one isn't sent and doesn't overwrite it. */
+  private latest = 0;
+
   constructor(private readonly groups: GroupsService) {}
 
   async handleConnection(socket: ChatSocket) {
-    socket.emit('groupList', await this.groups.list());
+    // Nest ignores this promise, so an error here would be an unhandled rejection that stops the whole server.
+    try {
+      const started = this.latest;
+      const groups = await this.groups.list();
+      // A newer broadcast already reached this socket.
+      if (started === this.latest) socket.emit('groupList', groups);
+    } catch (err) {
+      this.logger.error(err);
+    }
   }
 
   // What these return is the acknowledgement the Client gets back.
@@ -41,6 +54,8 @@ export class GroupsGateway implements OnGatewayConnection {
   }
 
   private async sendGroupList() {
-    this.server.emit('groupList', await this.groups.list());
+    const read = ++this.latest;
+    const groups = await this.groups.list();
+    if (read === this.latest) this.server.emit('groupList', groups);
   }
 }

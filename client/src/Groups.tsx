@@ -18,10 +18,18 @@ export function Groups({ socket, groups, me }: Props) {
   // The server enforces every rule; the page only shows its answer.
   async function send(event: 'createGroup' | 'joinGroup', name: string): Promise<Ack> {
     setBusy(true);
-    const result = await socket.emitWithAck(event, name);
-    setBusy(false);
-    setError(result.ok ? '' : result.error);
-    return result;
+    try {
+      // The timeout also ends the wait when the server throws, because then no answer ever comes.
+      const result = await socket.timeout(10_000).emitWithAck(event, name);
+      setError(result.ok ? '' : result.error);
+      return result;
+    } catch {
+      // Disconnected or timed out: say so, and leave the buttons usable.
+      setError('No answer from the server. Try again.');
+      return { ok: false, error: '' };
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function create(event: FormEvent) {
