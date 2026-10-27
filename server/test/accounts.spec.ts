@@ -65,11 +65,12 @@ test('a password sent in the handshake is kept only as a hash in the Users colle
   await app.connect({ mode: 'register', username: 'Alice', password: 'secret' });
 
   const connection = app.app.get<Connection>(getConnectionToken());
-  const collections = await connection.db!.listCollections().toArray();
-  expect(collections.map((collection) => collection.name)).toEqual(['users']);
   const stored = await connection.collection('users').find().toArray();
   expect(stored).toEqual([expect.objectContaining({ username: 'Alice', passwordHash: expect.stringMatching(/^\$2b\$10\$/) })]);
-  expect(JSON.stringify(stored)).not.toContain('secret');
+  // Nowhere in the database, not just not in Users: other collections (Groups, ...) exist alongside it.
+  for (const { name } of await connection.db!.listCollections().toArray()) {
+    expect(JSON.stringify(await connection.collection(name).find().toArray())).not.toContain('secret');
+  }
 });
 
 test('a handshake without a mode is refused', async () => {
