@@ -1,6 +1,5 @@
 import { getConnectionToken } from '@nestjs/mongoose';
 import type { Connection } from 'mongoose';
-import { io } from 'socket.io-client';
 import { UsersService } from '../src/users/users.service';
 import { startApp } from './app';
 
@@ -16,10 +15,10 @@ test('a Client that registers a new User comes Online as that User', async () =>
   expect(await alice.next('onlineList')).toEqual(['Alice']);
 });
 
-test('a registered User logs in with any case of their username and shows in the Online List as first typed', async () => {
+test('a registered User logs in with any case of their username, spaces around it ignored, and shows in the Online List as first typed', async () => {
   (await app.connect({ mode: 'register', username: 'Alice', password: 'secret' })).socket.disconnect();
 
-  const alice = await app.connect({ mode: 'login', username: 'aLICE', password: 'secret' });
+  const alice = await app.connect({ mode: 'login', username: ' aLICE ', password: 'secret' });
 
   expect(await alice.next('onlineList')).toEqual(['Alice']);
 });
@@ -76,12 +75,5 @@ test('a handshake without a mode is refused', async () => {
 });
 
 test('a handshake with no username or password is refused, not registered as "undefined"', async () => {
-  const socket = io(app.url, { transports: ['websocket'], auth: { mode: 'register' }, forceNew: true, reconnection: false });
-  const connecting = new Promise((resolve, reject) => {
-    socket.once('connect', () => resolve('connected'));
-    socket.once('connect_error', reject);
-  });
-
-  await expect(connecting).rejects.toThrow('A username is 3 to 20 letters, digits or underscores.');
-  socket.disconnect();
+  await expect(app.connect({ mode: 'register' } as never)).rejects.toThrow('A username is 3 to 20 letters, digits or underscores.');
 });

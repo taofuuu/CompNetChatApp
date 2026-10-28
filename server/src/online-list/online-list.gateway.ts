@@ -35,7 +35,7 @@ export class OnlineListGateway implements OnGatewayInit, OnGatewayConnection, On
     server.use(async (socket, next) => {
       const auth = socket.handshake.auth as Partial<Record<keyof HandshakeAuth, unknown>>;
       // Anything that isn't a string counts as empty, so the service's rules refuse it with their usual reason.
-      const username = typeof auth.username === 'string' ? auth.username : '';
+      const username = typeof auth.username === 'string' ? auth.username.trim() : '';
       const password = typeof auth.password === 'string' ? auth.password : '';
       let name: string;
       try {
