@@ -5,10 +5,6 @@ import { Groups } from './Groups';
 
 type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-// Shared by every tab in this browser, so they count as the same User.
-// Not crypto.randomUUID(): it needs HTTPS, and the hotspot setup serves the page over plain HTTP.
-const browserId: string = (localStorage.browserId ??= crypto.getRandomValues(new Uint32Array(4)).join('-'));
-
 export function App() {
   const [username, setUsername] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -20,7 +16,8 @@ export function App() {
   function connect(event: FormEvent) {
     event.preventDefault();
     setConnecting(true);
-    const auth: HandshakeAuth = { username, browserId };
+    // Placeholder until #20 adds the real login form with a password and Register.
+    const auth: HandshakeAuth = { mode: 'login', username, password: '' };
     // ADR-0001: WebSocket only. The page's own origin: NestJS in production, Vite's proxy in development.
     const socket: ChatSocket = io({ transports: ['websocket'], auth });
     setSocket(socket);
