@@ -22,11 +22,34 @@ export interface GroupSummary {
   members: string[];
 }
 
+/** A Message sent into a Room. */
+export interface Message {
+  roomId: string;
+  sender: string;
+  text: string;
+  createdAt: string;
+  timestamp?: string;
+  time?: string;
+}
+
+/** The server's answer when opening a Room or loading its history. */
+export type RoomMessagesAck =
+  | { ok: true; roomId: string; messages: Message[]; history: Message[] }
+  | { ok: false; error: string };
+
+/** The payload for sending a Message into a Room. */
+export interface SendMessagePayload {
+  roomId: string;
+  text: string;
+}
+
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
   /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create or join. */
   groupList: (groups: GroupSummary[]) => void;
+  /** A new Message sent into a Room the Client is in. */
+  message: (message: Message) => void;
 }
 
 export interface ClientToServerEvents {
@@ -34,4 +57,10 @@ export interface ClientToServerEvents {
   createGroup: (name: string, ack: (result: Ack) => void) => void;
   /** Adds the sender, and only the sender, to the Group named `name`. */
   joinGroup: (name: string, ack: (result: Ack) => void) => void;
+  /** Opens the Private Room between the sender and `targetUsername`, returning the Room id and history. */
+  openPrivateRoom: (targetUsername: string, ack: (result: RoomMessagesAck) => void) => void;
+  /** Loads the message history for `roomId`. */
+  loadMessages: (roomId: string, ack: (result: RoomMessagesAck) => void) => void;
+  /** Sends a Message into `roomId`. */
+  sendMessage: (payload: SendMessagePayload, ack: (result: Ack) => void) => void;
 }

@@ -6,5 +6,6 @@ import { OnlineListService } from './online-list.service';
 @Module({
   imports: [UsersModule],
   providers: [OnlineListGateway, OnlineListService],
+  exports: [OnlineListService],
 })
 export class OnlineListModule {}
