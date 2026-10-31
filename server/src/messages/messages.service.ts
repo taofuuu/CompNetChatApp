@@ -30,7 +30,7 @@ export class MessagesService {
     }
     const roomId = privateRoomId(requester, target);
     const messages = await this.loadHistory(roomId);
-    return { ok: true, roomId, messages, history: messages };
+    return { ok: true, roomId, messages };
   }
 
   /**
@@ -44,7 +44,7 @@ export class MessagesService {
       return { ok: false, error: 'You are not in this Room.' };
     }
     const messages = await this.loadHistory(roomId);
-    return { ok: true, roomId, messages, history: messages };
+    return { ok: true, roomId, messages };
   }
 
   /** Saves a new Message into MongoDB and returns it stamped with the server's clock. */
@@ -52,13 +52,7 @@ export class MessagesService {
     sender: string,
     payload: unknown,
   ): Promise<{ ok: true; message: SharedMessage } | { ok: false; error: string }> {
-    let roomId: unknown;
-    let text: unknown;
-    if (payload && typeof payload === 'object') {
-      const obj = payload as { roomId?: unknown; text?: unknown };
-      roomId = obj.roomId;
-      text = obj.text;
-    }
+    const { roomId, text } = (payload ?? {}) as { roomId?: unknown; text?: unknown };
     const cleanRoomId = typeof roomId === 'string' ? roomId.trim() : '';
     if (!cleanRoomId) return { ok: false, error: 'Invalid room id.' };
     if (!isUserInPrivateRoom(sender, cleanRoomId)) {
@@ -78,16 +72,13 @@ export class MessagesService {
       createdAt: now,
     });
 
-    const iso = created.createdAt.toISOString();
     return {
       ok: true,
       message: {
         roomId: cleanRoomId,
         sender,
         text: trimmed,
-        createdAt: iso,
-        timestamp: iso,
-        time: iso,
+        createdAt: created.createdAt.toISOString(),
       },
     };
   }
@@ -95,16 +86,11 @@ export class MessagesService {
   /** Loads full history for `roomId` in chronological order. */
   private async loadHistory(roomId: string): Promise<SharedMessage[]> {
     const docs = await this.messages.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
-    return docs.map((doc) => {
-      const iso = doc.createdAt instanceof Date ? doc.createdAt.toISOString() : new Date(doc.createdAt).toISOString();
-      return {
-        roomId: doc.roomId,
-        sender: doc.sender,
-        text: doc.text,
-        createdAt: iso,
-        timestamp: iso,
-        time: iso,
-      };
-    });
+    return docs.map((doc) => ({
+      roomId: doc.roomId,
+      sender: doc.sender,
+      text: doc.text,
+      createdAt: doc.createdAt.toISOString(),
+    }));
   }
 }

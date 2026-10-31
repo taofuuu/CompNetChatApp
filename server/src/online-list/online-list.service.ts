@@ -28,9 +28,4 @@ export class OnlineListService {
   isOnline(name: string): boolean {
     return this.onlineUsers.has(name.toLowerCase());
   }
-
-  /** The Online User's name as they first typed it, if Online. */
-  getOnlineName(name: string): string | undefined {
-    return this.onlineUsers.get(name.toLowerCase())?.name;
-  }
 }

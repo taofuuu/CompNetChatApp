@@ -28,13 +28,11 @@ export interface Message {
   sender: string;
   text: string;
   createdAt: string;
-  timestamp?: string;
-  time?: string;
 }
 
 /** The server's answer when opening a Room or loading its history. */
 export type RoomMessagesAck =
-  | { ok: true; roomId: string; messages: Message[]; history: Message[] }
+  | { ok: true; roomId: string; messages: Message[] }
   | { ok: false; error: string };
 
 /** The payload for sending a Message into a Room. */

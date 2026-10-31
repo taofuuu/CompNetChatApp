@@ -12,7 +12,10 @@ export function privateRoomId(userA: string, userB: string): string {
  */
 export function isUserInPrivateRoom(username: string, roomId: string): boolean {
   const parts = roomId.split(':');
-  if (parts.length !== 2) return false;
-  const user = username.toLowerCase();
-  return parts[0] === user || parts[1] === user;
+  return (
+    parts.length === 2 &&
+    parts[0] !== parts[1] &&
+    parts.includes(username.toLowerCase()) &&
+    roomId === privateRoomId(parts[0], parts[1])
+  );
 }

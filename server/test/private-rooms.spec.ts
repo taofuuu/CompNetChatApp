@@ -11,8 +11,8 @@ test('the same Room from both sides (R5)', async () => {
   const aliceRoom = await alice.socket.emitWithAck('openPrivateRoom', 'Bob');
   const bobRoom = await bob.socket.emitWithAck('openPrivateRoom', 'Alice');
 
-  expect(aliceRoom).toEqual({ ok: true, roomId: 'alice:bob', messages: [], history: [] });
-  expect(bobRoom).toEqual({ ok: true, roomId: 'alice:bob', messages: [], history: [] });
+  expect(aliceRoom).toEqual({ ok: true, roomId: 'alice:bob', messages: [] });
+  expect(bobRoom).toEqual({ ok: true, roomId: 'alice:bob', messages: [] });
   expect((aliceRoom as { roomId: string }).roomId).toBe((bobRoom as { roomId: string }).roomId);
 });
 
@@ -67,6 +67,17 @@ test('opening a Private Room with yourself or an offline User is refused (R5)', 
   expect(offlineResult).toEqual({ ok: false, error: 'Bob is offline.' });
 });
 
+test("sending to invalid Room ids like 'bob:alice' or 'alice:alice' is rejected", async () => {
+  const alice = await app.connectAsUser('Alice');
+  await app.connectAsUser('Bob');
+
+  const reversed = await alice.socket.emitWithAck('sendMessage', { roomId: 'bob:alice', text: 'Hi' });
+  expect(reversed).toEqual({ ok: false, error: 'You are not in this Room.' });
+
+  const selfRoom = await alice.socket.emitWithAck('sendMessage', { roomId: 'alice:alice', text: 'Hi' });
+  expect(selfRoom).toEqual({ ok: false, error: 'You are not in this Room.' });
+});
+
 test('Messages that are empty after trimming or over 1000 characters are rejected (R6)', async () => {
   const alice = await app.connectAsUser('Alice');
   await app.connectAsUser('Bob');
@@ -105,10 +116,10 @@ test('Messages are stamped with the server clock (R6)', async () => {
 });
 
 test('new Messages appear immediately on every Client of both Users (R6)', async () => {
-  const aliceClient1 = await app.connectAsUser('Alice', 'browser-alice');
-  const aliceClient2 = await app.connectAsUser('Alice', 'browser-alice');
-  const bobClient1 = await app.connectAsUser('Bob', 'browser-bob');
-  const bobClient2 = await app.connectAsUser('Bob', 'browser-bob');
+  const aliceClient1 = await app.connectAsUser('Alice');
+  const aliceClient2 = await app.connectAsUser('Alice');
+  const bobClient1 = await app.connectAsUser('Bob');
+  const bobClient2 = await app.connectAsUser('Bob');
 
   const room = await aliceClient1.socket.emitWithAck('openPrivateRoom', 'Bob');
   expect(room.ok).toBe(true);

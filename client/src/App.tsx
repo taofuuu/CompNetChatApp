@@ -29,7 +29,6 @@ export function App() {
     const auth: HandshakeAuth = { mode, username, password };
     // ADR-0001: WebSocket only. The page's own origin: NestJS in production, Vite's proxy in development.
     const socket: ChatSocket = io({ transports: ['websocket'], auth });
-    setSocket(socket);
     socket.on('connect', () => {
       setError('');
       // The account exists now: a reconnect after a network drop logs in rather than registering again.
@@ -65,6 +64,7 @@ export function App() {
       setSocket(undefined);
       setOnlineList(undefined);
     });
+    setSocket(socket);
   }
 
   async function openPrivateRoom(targetUser: string) {

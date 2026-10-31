@@ -9,15 +9,15 @@ import {
 import type {
   Ack,
   ClientToServerEvents,
-  HandshakeAuth,
   RoomMessagesAck,
   ServerToClientEvents,
 } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
+import type { SocketData } from '../socket-data';
 import { MessagesService } from './messages.service';
 
-type ChatServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
-type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
+type ChatServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
 
 // ADR-0001: WebSocket only.
 @WebSocketGateway({ transports: ['websocket'] })
@@ -27,9 +27,7 @@ export class MessagesGateway implements OnGatewayConnection {
   constructor(private readonly messagesService: MessagesService) {}
 
   handleConnection(socket: ChatSocket) {
-    if (socket.data?.username) {
-      socket.join(`user:${socket.data.username.toLowerCase()}`);
-    }
+    socket.join(`user:${socket.data.username.toLowerCase()}`);
   }
 
   @SubscribeMessage('openPrivateRoom')
@@ -56,9 +54,7 @@ export class MessagesGateway implements OnGatewayConnection {
     const result = await this.messagesService.send(socket.data.username, payload);
     if (result.ok) {
       const parts = result.message.roomId.split(':');
-      if (parts.length === 2) {
-        this.server.to(`user:${parts[0]}`).to(`user:${parts[1]}`).emit('message', result.message);
-      }
+      this.server.to(`user:${parts[0]}`).to(`user:${parts[1]}`).emit('message', result.message);
       return { ok: true };
     }
     return { ok: false, error: result.error };
