@@ -8,6 +8,7 @@ export type AuthMode = 'register' | 'login';
 export interface HandshakeAuth {
   mode: AuthMode;
   username: string;
+  /** shortcut: sent as plain text, since the hotspot demo serves plain HTTP; serve the page over HTTPS before real use. */
   password: string;
 }
 
