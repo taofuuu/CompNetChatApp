@@ -1,10 +1,154 @@
 body {
   font-family: system-ui, sans-serif;
-  max-width: 40rem;
+  max-width: 56rem;
   margin: 2rem auto;
   padding: 0 1rem;
 }
 
 [role='alert'] {
   color: #b00020;
+}
+
+.chat-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.sidebar {
+  flex: 0 0 16rem;
+}
+
+.main-panel {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.online-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem 0;
+}
+
+.online-user-item {
+  margin: 0.3rem 0;
+}
+
+.user-button {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.user-button:hover {
+  background: #f0f0f0;
+}
+
+.user-button.active {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  font-weight: 600;
+}
+
+.unread-count {
+  color: #b00020;
+  font-weight: bold;
+}
+
+.room-panel {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.room-header {
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.5rem;
+}
+
+.room-header h3 {
+  margin: 0;
+}
+
+.message-window {
+  height: 20rem;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 0.75rem;
+  background: #fafafa;
+  margin-bottom: 0.75rem;
+}
+
+.message-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.message-item {
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  max-width: 80%;
+}
+
+.message-self {
+  align-self: flex-end;
+  background: #e3f2fd;
+  border: 1px solid #bbdefb;
+}
+
+.message-other {
+  align-self: flex-start;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+}
+
+.message-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #555;
+  margin-bottom: 0.2rem;
+}
+
+.message-text {
+  word-break: break-word;
+}
+
+.message-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.message-form input {
+  flex: 1;
+  padding: 0.45rem;
+  font: inherit;
+}
+
+.empty-panel {
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: #666;
+}
+
+.empty-history {
+  text-align: center;
+  color: #888;
+  margin-top: 2rem;
 }
