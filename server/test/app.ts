@@ -1,11 +1,10 @@
-import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@compnet/shared';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
+import { freshDatabaseUri } from './mongo';
 
 type Payload<E extends keyof ServerToClientEvents> = Parameters<ServerToClientEvents[E]>[0];
 
@@ -16,13 +15,13 @@ export interface TestClient {
   next<E extends keyof ServerToClientEvents>(event: E): Promise<Payload<E>>;
 }
 
-/** Boots the whole app on a free port against a fresh in-memory MongoDB. */
+/** Boots the whole app on a free port against a fresh, empty database. */
 export async function startApp() {
-  const mongo = await MongoMemoryServer.create();
-  process.env.MONGODB_URI = mongo.getUri();
+  process.env.MONGODB_URI = await freshDatabaseUri();
   let app: INestApplication;
   let url: string;
   let sockets: Socket[] = [];
+  const registered = new Set<string>();
 
   async function boot() {
     app = await NestFactory.create(AppModule, { logger: false });
@@ -41,13 +40,12 @@ export async function startApp() {
     get url() {
       return url;
     },
+    get app() {
+      return app;
+    },
 
-    /**
-     * Connects a Client over WebSocket as the User `username`, the way the page does.
-     * Pass the same `browserId` to connect a second Client of the same User. Rejects with the server's reason.
-     */
-    connectAsUser(username: string, browserId: string = randomUUID()): Promise<TestClient> {
-      const auth: HandshakeAuth = { username, browserId };
+    /** Connects a Client over WebSocket with this handshake, the way the page does. Rejects with the server's reason. */
+    connect(auth: HandshakeAuth): Promise<TestClient> {
       const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(url, {
         transports: ['websocket'],
         auth,
@@ -83,6 +81,16 @@ export async function startApp() {
       });
     },
 
+    /**
+     * Connects a Client as the User `username`: registers them the first time this app sees the name (ignoring case)
+     * and logs in after that, so calling it again adds another Client of the same User.
+     */
+    connectAsUser(username: string, password = 'secret'): Promise<TestClient> {
+      const mode = registered.has(username.toLowerCase()) ? 'login' : 'register';
+      registered.add(username.toLowerCase());
+      return this.connect({ mode, username, password });
+    },
+
     /** Stops the app and boots a new one against the same database, the way a server restart does. */
     async restart() {
       disconnectAll();
@@ -93,7 +101,6 @@ export async function startApp() {
     async close() {
       disconnectAll();
       await app.close();
-      await mongo.stop();
     },
   };
 }

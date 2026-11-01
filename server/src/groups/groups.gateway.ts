@@ -7,12 +7,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { Ack, ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@compnet/shared';
+import type { Ack, ClientToServerEvents, ServerToClientEvents } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
+import type { SocketData } from '../socket-data';
 import { GroupsService } from './groups.service';
 
-type ChatServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
-type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, HandshakeAuth>;
+type ChatServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
+type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
 
 // ADR-0001: WebSocket only. The handshake check that sets socket.data lives in OnlineListGateway; every gateway shares it.
 @WebSocketGateway({ transports: ['websocket'] })

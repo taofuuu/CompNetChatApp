@@ -4,19 +4,12 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class OnlineListService {
   /** Every Online User, keyed by their lowercase name. */
-  private readonly onlineUsers = new Map<string, { name: string; browserId: string; clients: number }>();
+  private readonly onlineUsers = new Map<string, { name: string; clients: number }>();
 
-  /** The Online User who already has `name` (ignoring case) from another browser, if any. */
-  takenBy(name: string, browserId: string): string | undefined {
-    const user = this.onlineUsers.get(name.toLowerCase());
-    // Only the browser that brought this User Online can add Clients to them.
-    return user && browserId !== user.browserId ? user.name : undefined;
-  }
-
-  addClient(name: string, browserId: string) {
+  addClient(name: string) {
     const user = this.onlineUsers.get(name.toLowerCase());
     if (user) user.clients++;
-    else this.onlineUsers.set(name.toLowerCase(), { name, browserId, clients: 1 });
+    else this.onlineUsers.set(name.toLowerCase(), { name, clients: 1 });
   }
 
   /** A User stays Online until their last Client is removed. */
