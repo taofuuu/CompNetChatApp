@@ -166,12 +166,6 @@ One new event, `botChunk: { roomId, text }`. The finished reply is a normal `Mes
 
 `Room` shows the draft as a last list item and gives bot's Messages the purple `message-bot` style. Scrolling is instant while streaming, since one smooth animation per chunk would lag behind the text.
 
-### Tests: `server/test/bot.spec.ts` and `fake-ai.ts`
-
-`fake-ai.ts` is a real local HTTP server that speaks the OpenAI streaming format. It can reply, return an error, stay silent, or hold its answer until a test releases it. `bot.spec.ts` boots the whole app, connects real sockets, and points `AI_BASE_URL` at the fake.
-
-The 23 tests cover replying to both Users, streaming, privacy from a third User, what the model receives, trigger rules, one reply at a time, every failure path (including a real 10-second wait), and the reserved name.
-
 ---
 
 ## 4. Design choices and alternatives
@@ -232,25 +226,16 @@ A reply takes about 1.5 seconds with the current model, so this should rarely sh
 
 **The last 6 Messages** ✅, as #5 asks for "the last few". The full history would cost more and slow answers as a Room grows. Only the question would be simplest, but follow-ups like "and UDP?" would make no sense.
 
-### 8. Testing the AI
-
-| Option | Trade-off |
-|---|---|
-| **Local fake HTTP server** ✅ | Exercises the real `AiClient`, SDK and streaming parser, with no network or key |
-| Replace `AiClient` with a mock object | Simpler, but the timeout and stream parsing would go untested, and those are the riskiest parts |
-| Call real Typhoon in tests | Most realistic, but slow, flaky, and it needs a key in CI |
-
-The real API was checked by hand instead (see below).
-
-### 9. Reserving the name
+### 8. Reserving the name
 
 **Refuse `bot` at register and log in** ✅, with a plain string `sender`. The alternative was a real `User` record for the bot or an `isBot` field on Messages. Those are more "correct", but they'd add a password-less User or a schema change to solve what one name check solves.
 
-### 10. Known limits
+### 9. Known limits
 
 - **Private Rooms only**, as #5 decided. When #11 (Group Messages) lands, `toRoom` needs to learn Groups, since it assumes a Room id holds two usernames.
 - **The chat history goes to Typhoon.** The last 6 Messages of a Room leave the server whenever someone uses `@bot`, including the other person's. Worth a sentence in the demo.
 - **Prompt injection is possible but harmless here.** A Message can say "ignore your rules". The bot has no tools and no data beyond its 6 Messages, so the worst result is a silly reply.
+- **The bot has no automated tests.** They were removed to keep the PR small, so a later change could break it without CI noticing. The last version is in commit `d6e8fd4` (`server/test/bot.spec.ts` and `fake-ai.ts`) if you want them back.
 - **`BOT_NAME` exists twice**, on server and client, because `shared` holds types only and nothing builds it.
 
 ---
@@ -259,7 +244,7 @@ The real API was checked by hand instead (see below).
 
 | Check | Result |
 |---|---|
-| Lint, build, all tests | Pass, 69 tests across 6 files (23 for the bot) |
+| Lint, build, the existing tests | Pass. None of these tests cover the bot |
 | Real Typhoon, Thai question in the browser | Thai reply on both Users' screens |
 | Real Typhoon, English question in the browser | English reply |
 | Streaming seen on Bob's screen | The text grew in 76 page updates |
@@ -282,10 +267,6 @@ The real API was checked by hand instead (see below).
 ---
 
 ## 7. Try it yourself
-
-```bash
-npm test -w server -- bot.spec
-```
 
 Good first changes, each small:
 
