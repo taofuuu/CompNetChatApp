@@ -235,7 +235,7 @@ A reply takes about 1.5 seconds with the current model, so this should rarely sh
 - **Private Rooms only**, as #5 decided. When #11 (Group Messages) lands, `toRoom` needs to learn Groups, since it assumes a Room id holds two usernames.
 - **The chat history goes to Typhoon.** The last 6 Messages of a Room leave the server whenever someone uses `@bot`, including the other person's. Worth a sentence in the demo.
 - **Prompt injection is possible but harmless here.** A Message can say "ignore your rules". The bot has no tools and no data beyond its 6 Messages, so the worst result is a silly reply.
-- **The bot has no automated tests.** They were removed to keep the PR small, so a later change could break it without CI noticing. The last version is in commit `d6e8fd4` (`server/test/bot.spec.ts` and `fake-ai.ts`) if you want them back.
+- **The bot has no automated tests.** They were removed from the PR on request, so a later change could break it without CI noticing. The last version is in commit `d6e8fd4` (`server/test/bot.spec.ts` and `fake-ai.ts`) if you want them back.
 - **`BOT_NAME` exists twice**, on server and client, because `shared` holds types only and nothing builds it.
 
 ---
