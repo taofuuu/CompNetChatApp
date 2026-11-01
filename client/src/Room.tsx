@@ -2,11 +2,15 @@ import type { ClientToServerEvents, Message, ServerToClientEvents } from '@compn
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 
+export const BOT_NAME = 'bot';
+
 interface Props {
   socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   roomId: string;
   title: string;
   messages: Message[];
+  /** The bot's reply so far while it is being written, or empty. */
+  botDraft: string;
   /** The viewer's lowercase username. */
   me: string;
 }
@@ -21,15 +25,16 @@ function formatTime(isoString: string): string {
  * A Room panel: displays message history in a scrollable message window
  * and provides a text box for sending Messages.
  */
-export function Room({ socket, roomId, title, messages, me }: Props) {
+export function Room({ socket, roomId, title, messages, botDraft, me }: Props) {
   const [inputText, setInputText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    // Instant while the bot streams: a smooth scroll per chunk would lag behind the text.
+    messagesEndRef.current?.scrollIntoView({ behavior: botDraft ? 'auto' : 'smooth' });
+  }, [messages, botDraft]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -65,10 +70,11 @@ export function Room({ socket, roomId, title, messages, me }: Props) {
           <ul className="message-list">
             {messages.map((message, i) => {
               const isSelf = message.sender.toLowerCase() === me;
+              const side = message.sender === BOT_NAME ? 'message-bot' : isSelf ? 'message-self' : 'message-other';
               return (
                 <li
                   key={`${message.sender}-${message.createdAt}-${i}`}
-                  className={`message-item ${isSelf ? 'message-self' : 'message-other'}`}
+                  className={`message-item ${side}`}
                 >
                   <div className="message-header">
                     <strong className="message-sender">{message.sender}</strong>{' '}
@@ -80,6 +86,14 @@ export function Room({ socket, roomId, title, messages, me }: Props) {
                 </li>
               );
             })}
+            {botDraft && (
+              <li className="message-item message-bot">
+                <div className="message-header">
+                  <strong className="message-sender">{BOT_NAME}</strong>
+                </div>
+                <div className="message-text">{botDraft}</div>
+              </li>
+            )}
           </ul>
         )}
         <div ref={messagesEndRef} />
