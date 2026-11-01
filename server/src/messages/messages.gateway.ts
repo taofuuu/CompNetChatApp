@@ -28,7 +28,11 @@ export class MessagesGateway implements OnGatewayConnection {
   @WebSocketServer() private server: ChatServer;
 
   private readonly logger = new Logger(MessagesGateway.name);
-  /** Rooms the bot is answering in right now. A Room gets one reply at a time, so two can't mix in its one streaming bubble. */
+  /**
+   * Rooms the bot is answering in right now, and the Users who asked. A Room gets one reply at a time, so two can't mix in
+   * its one streaming bubble. A User gets one too: Room ids can be made up, so a per-Room lock alone lets one User start
+   * any number of AI calls. Usernames can't contain `:`, so they never clash with Room ids.
+   */
   private readonly botAnswering = new Set<string>();
 
   constructor(
@@ -65,15 +69,15 @@ export class MessagesGateway implements OnGatewayConnection {
     if (result.ok) {
       this.toRoom(result.message.roomId).emit('message', result.message);
       // Not awaited: the sender's acknowledgement shouldn't wait for the AI.
-      if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId);
+      if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId, socket.data.username.toLowerCase());
       return { ok: true };
     }
     return { ok: false, error: result.error };
   }
 
-  private async answerAsBot(roomId: string) {
-    if (this.botAnswering.has(roomId)) return;
-    this.botAnswering.add(roomId);
+  private async answerAsBot(roomId: string, asker: string) {
+    if (this.botAnswering.has(roomId) || this.botAnswering.has(asker)) return;
+    this.botAnswering.add(roomId).add(asker);
     // Nest doesn't see this promise, so an error here would be an unhandled rejection that stops the whole server.
     try {
       const history = await this.messagesService.recent(roomId, BOT_CONTEXT_MESSAGES);
@@ -86,6 +90,7 @@ export class MessagesGateway implements OnGatewayConnection {
       this.toRoom(roomId).emit('message', { roomId, sender: BOT_NAME, text: BOT_UNAVAILABLE, createdAt });
     } finally {
       this.botAnswering.delete(roomId);
+      this.botAnswering.delete(asker);
     }
   }
 

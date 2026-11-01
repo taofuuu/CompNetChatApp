@@ -111,11 +111,11 @@ An `AbortController` is a cancel button for a request. The timer presses it afte
 
 ```ts
 export function mentionsBot(text: string) {
-  return /^@bot(\s|$)/i.test(text);
+  return /^@bot\b/i.test(text);
 }
 ```
 
-`^` is the start of the text, `(\s|$)` means a space or the end follows, and `i` ignores case. So `@bot hi`, `@BOT hi` and a bare `@bot` count, while `@bottle` and `hi @bot` don't. `send` trims the text first, so leading spaces are fine.
+`^` is the start of the text, `\b` means no letter, digit or underscore follows, and `i` ignores case. So `@bot hi`, `@BOT hi`, a bare `@bot`, `@bot, hi`, `@bot: hi` and `@botอธิบาย` all count, while `@bottle`, `@bot1` and `hi @bot` don't. The Thai one counts because `\b` only knows English letters, so a Thai letter ends the word. `send` trims the text first, so leading spaces are fine.
 
 `reply(history, onChunk)` adds up the pieces, passes each to `onChunk`, and returns the whole text. Its `catch` turns **any** error into `BOT_UNAVAILABLE`, and `reply.trim() || BOT_UNAVAILABLE` handles an empty answer. It never throws, which makes the gateway's job simple.
 
@@ -130,15 +130,20 @@ Note that `onChunk` is a callback. `BotService` has no idea what happens to a ch
 ### `messages.gateway.ts`: joining it to the chat
 
 ```ts
-if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId);
+if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId, socket.data.username.toLowerCase());
 return { ok: true };
 ```
 
 There's no `await`, on purpose. Alice's client gives up after 10 seconds without an acknowledgement, and the AI may take that long. `void` tells the reader, and the linter, that ignoring the promise is intended.
 
-That choice has a cost: nobody catches an error in `answerAsBot`, and an unhandled rejection stops a Node server. So its body sits in `try/catch`. If the database fails, the `catch` sends an unsaved notice so the bubble doesn't stay stuck on screen. `finally` always releases the Room.
+That choice has a cost: nobody catches an error in `answerAsBot`, and an unhandled rejection stops a Node server. So its body sits in `try/catch`. If the database fails, the `catch` sends an unsaved notice so the bubble doesn't stay stuck on screen. `finally` always releases the locks.
 
-`botAnswering` is a `Set` of Rooms with a reply in progress. Each Room has one streaming bubble, so a second reply at the same time would mix into it.
+`botAnswering` is a `Set` of two kinds of lock, both held while a reply is in progress:
+
+- **The Room.** Each Room has one streaming bubble, so a second reply at the same time would mix into it.
+- **The User who asked.** `isUserInPrivateRoom` checks the id's format, not that the other User exists, so `alice:x1`, `alice:x2` and so on are all accepted for Alice. With only a Room lock, a changed Client could start hundreds of AI calls at once and use up Typhoon's limit of 200 per minute for everyone. Usernames can't contain `:`, so the two kinds never clash in one `Set`.
+
+The cost: if Alice asks in a second Room while her first reply is running, the second `@bot` is ignored with no message.
 
 `toRoom(roomId)` replaces the old inline `split(':')`, now that three places emit to a Room. It targets the `user:<name>` Socket.IO rooms from #8, which reach every Client of both Users.
 
@@ -235,7 +240,7 @@ A reply takes about 1.5 seconds with the current model, so this should rarely sh
 - **Private Rooms only**, as #5 decided. When #11 (Group Messages) lands, `toRoom` needs to learn Groups, since it assumes a Room id holds two usernames.
 - **The chat history goes to Typhoon.** The last 6 Messages of a Room leave the server whenever someone uses `@bot`, including the other person's. Worth a sentence in the demo.
 - **Prompt injection is possible but harmless here.** A Message can say "ignore your rules". The bot has no tools and no data beyond its 6 Messages, so the worst result is a silly reply.
-- **The bot has no automated tests.** They were removed from the PR on request, so a later change could break it without CI noticing. The last version is in commit `d6e8fd4` (`server/test/bot.spec.ts` and `fake-ai.ts`) if you want them back.
+- **The bot has almost no automated tests.** They were removed from the PR on request, so a later change could break it without CI noticing. The one test left guards the reserved name, because that is a security check. The last version of the others is in commit `d6e8fd4` (`server/test/bot.spec.ts` and `fake-ai.ts`) if you want them back.
 - **`BOT_NAME` exists twice**, on server and client, because `shared` holds types only and nothing builds it.
 
 ---
@@ -244,7 +249,7 @@ A reply takes about 1.5 seconds with the current model, so this should rarely sh
 
 | Check | Result |
 |---|---|
-| Lint, build, the existing tests | Pass. None of these tests cover the bot |
+| Lint, build, the existing tests | Pass. The only one covering the bot is the reserved-name test |
 | Real Typhoon, Thai question in the browser | Thai reply on both Users' screens |
 | Real Typhoon, English question in the browser | English reply |
 | Streaming seen on Bob's screen | The text grew in 76 page updates |

@@ -8,9 +8,9 @@ import { SYSTEM_PROMPT } from './prompt';
 export const BOT_CONTEXT_MESSAGES = 6;
 export const BOT_UNAVAILABLE = 'bot is unavailable right now';
 
-/** Whether `text` asks the bot something: it starts with @bot as a whole word, in any case. */
+/** Whether `text` asks the bot something: it starts with @bot, in any case, and no letter, digit or underscore follows. */
 export function mentionsBot(text: string) {
-  return /^@bot(\s|$)/i.test(text);
+  return /^@bot\b/i.test(text);
 }
 
 /** Turns a Room's Messages into the bot's reply. Knows nothing of sockets or the database. */
