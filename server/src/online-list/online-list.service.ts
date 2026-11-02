@@ -23,4 +23,9 @@ export class OnlineListService {
   names() {
     return [...this.onlineUsers.values()].map((user) => user.name);
   }
+
+  /** Whether a User with `name` (ignoring case) is currently Online. */
+  isOnline(name: string): boolean {
+    return this.onlineUsers.has(name.toLowerCase());
+  }
 }

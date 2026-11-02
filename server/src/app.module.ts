@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { GroupsModule } from './groups/groups.module';
+import { MessagesModule } from './messages/messages.module';
 import { OnlineListModule } from './online-list/online-list.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { OnlineListModule } from './online-list/online-list.module';
     }),
     OnlineListModule,
     GroupsModule,
+    MessagesModule,
   ],
 })
 export class AppModule {}
