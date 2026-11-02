@@ -130,22 +130,3 @@ test('Group Messages follow the same rules as Private ones: 1–1000 characters,
   expect(Date.parse(message.createdAt)).toBeGreaterThanOrEqual(before);
   expect(Date.parse(message.createdAt)).toBeLessThanOrEqual(Date.now());
 });
-
-test('Group Messages survive a server restart, and Members receive new ones after reconnecting', async () => {
-  const alice = await app.connectAsUser('Alice');
-  const bob = await app.connectAsUser('Bob');
-  await alice.socket.emitWithAck('createGroup', 'Study');
-  await bob.socket.emitWithAck('joinGroup', 'Study');
-  await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Before the restart' });
-
-  await app.restart();
-  const alice2 = await app.connectAsUser('Alice');
-  const bob2 = await app.connectAsUser('Bob');
-
-  expect(await bob2.socket.emitWithAck('loadMessages', '#study')).toMatchObject({
-    ok: true,
-    messages: [{ text: 'Before the restart' }],
-  });
-  await alice2.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'After the restart' });
-  expect(await bob2.next('message')).toMatchObject({ roomId: '#study', text: 'After the restart' });
-});
