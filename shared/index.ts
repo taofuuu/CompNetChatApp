@@ -24,6 +24,7 @@ export interface GroupSummary {
 
 /** A Message sent into a Room. */
 export interface Message {
+  /** `alice:bob` for a Private Room (both lowercase usernames, sorted), `#study` for a Group (its lowercase name). */
   roomId: string;
   sender: string;
   text: string;

@@ -13,6 +13,7 @@ import type {
   ServerToClientEvents,
 } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
+import { groupKeyOf } from '../groups/group-room';
 import type { SocketData } from '../socket-data';
 import { MessagesService } from './messages.service';
 
@@ -53,8 +54,14 @@ export class MessagesGateway implements OnGatewayConnection {
   ): Promise<Ack> {
     const result = await this.messagesService.send(socket.data.username, payload);
     if (result.ok) {
-      const parts = result.message.roomId.split(':');
-      this.server.to(`user:${parts[0]}`).to(`user:${parts[1]}`).emit('message', result.message);
+      const { roomId } = result.message;
+      if (groupKeyOf(roomId) !== undefined) {
+        // Every Client of every Member is in the Group's Socket.IO room, named by its Room id (GroupsGateway).
+        this.server.to(roomId).emit('message', result.message);
+      } else {
+        const parts = roomId.split(':');
+        this.server.to(`user:${parts[0]}`).to(`user:${parts[1]}`).emit('message', result.message);
+      }
       return { ok: true };
     }
     return { ok: false, error: result.error };
