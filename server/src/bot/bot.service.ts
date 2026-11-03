@@ -82,7 +82,7 @@ function withoutFailures(history: Message[]) {
 
 function toAiMessages(history: Message[], slides: Slide[]): AiMessage[] {
   return [
-    { role: 'system', content: systemPrompt(slides) },
+    { role: 'system', content: systemPrompt(slides, history.at(-1)?.text ?? '') },
     ...withoutFailures(history).flatMap(({ sender, text }): AiMessage[] => {
       if (sender !== BOT_NAME) return [{ role: 'user', content: `${sender}: ${text}` }];
       // A reply that was only citations is left out: some APIs refuse an empty message.
