@@ -15,7 +15,7 @@ const MAX_REPLY_TOKENS = 500;
 @Injectable()
 export class AiClient {
   /** Yields the model's reply piece by piece. Throws if it fails or falls silent. */
-  async *stream(messages: AiMessage[]): AsyncGenerator<string> {
+  async *stream(messages: AiMessage[], maxTokens = MAX_REPLY_TOKENS): AsyncGenerator<string> {
     const { AI_BASE_URL: baseURL, AI_MODEL: model, AI_API_KEY: apiKey } = process.env;
     // All three, or the SDK would fall back to OpenAI's own address.
     if (!baseURL || !model || !apiKey) throw new Error('AI_BASE_URL, AI_MODEL and AI_API_KEY must be set.');
@@ -26,7 +26,7 @@ export class AiClient {
     let silence = setTimeout(() => abort.abort(), SILENCE_LIMIT_MS);
     try {
       const stream = await client.chat.completions.create(
-        { model, messages, stream: true, max_tokens: MAX_REPLY_TOKENS },
+        { model, messages, stream: true, max_tokens: maxTokens },
         { signal: abort.signal },
       );
       for await (const chunk of stream) {
