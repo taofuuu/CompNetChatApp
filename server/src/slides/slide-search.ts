@@ -5,9 +5,14 @@ import type { Slide } from './slide.schema';
 const K1 = 1.2;
 const B = 0.75;
 
-/** Lower-cased words and numbers. Keeps `802.11`, `255.255.255.0` and `/26` whole; splits `SYN-ACK` into two. */
+/**
+ * Lower-cased words and numbers. Keeps `802.11`, `255.255.255.0` and `/26` whole; splits `SYN-ACK` into two. A dotted
+ * run with letters, like `www.ietf.org` or `datagrams.forwarding` (a PDF that lost a space), also gives its parts.
+ */
 function words(text: string) {
-  return text.toLowerCase().match(/\/\d+|[a-z0-9]+(?:\.[a-z0-9]+)*/g) ?? [];
+  return (text.toLowerCase().match(/\/\d+|[a-z0-9]+(?:\.[a-z0-9]+)*/g) ?? []).flatMap((word) =>
+    word.includes('.') && /[a-z]/.test(word) ? [word, ...word.split('.')] : [word],
+  );
 }
 
 /** Finds the Slides that best match some keywords. Everything is in memory: a course has under a thousand Slides. */

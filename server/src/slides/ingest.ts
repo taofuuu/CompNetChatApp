@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import mongoose from 'mongoose';
 import { extractText, getDocumentProxy } from 'unpdf';
 import { parseLessonFileName } from './lesson-file-name';
@@ -48,7 +48,8 @@ export function report(slides: Slide[]) {
 }
 
 async function main() {
-  const folder = process.argv[2];
+  // npm -w runs this from server/; INIT_CWD is where the command was typed.
+  const folder = process.argv[2] && resolve(process.env.INIT_CWD ?? '.', process.argv[2]);
   if (!folder) throw new Error('Usage: npm run slides:ingest -w server -- <folder of Lesson PDFs>');
   if (existsSync('.env')) process.loadEnvFile();
   const uri = process.env.MONGODB_URI;

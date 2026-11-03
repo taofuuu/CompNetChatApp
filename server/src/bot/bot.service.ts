@@ -4,6 +4,7 @@ import type { Slide } from '../slides/slide.schema';
 import { SlidesService } from '../slides/slides.service';
 import { AiClient, type AiMessage } from './ai.client';
 import { BOT_NAME } from './bot-name';
+import { keepCitationsOf, withoutCitations } from './citations';
 import { KEYWORDS_PROMPT, systemPrompt } from './prompt';
 
 /** How many of a Room's latest Messages the model sees, including the one that mentions it. */
@@ -40,7 +41,8 @@ export class BotService {
         reply += text;
         onChunk(text);
       }
-      return reply.trim() || BOT_UNAVAILABLE;
+      // The streamed bubble may show an invented citation; this saved Message replaces it.
+      return keepCitationsOf(reply, slides) || BOT_UNAVAILABLE;
     } catch (err) {
       this.logger.error(err);
       return BOT_UNAVAILABLE;
@@ -60,13 +62,17 @@ export class BotService {
       for await (const text of this.ai.stream(ask, { maxTokens: KEYWORD_TOKENS, silenceMs: KEYWORD_SILENCE_MS })) {
         keywords += text;
       }
-      // Also "NONE." or "Keywords: NONE": otherwise "none" itself would be searched for.
-      return /\bnone\b/i.test(keywords) ? [] : this.slides.top(keywords, SLIDES_SHOWN);
+      return isNone(keywords) ? [] : this.slides.top(keywords, SLIDES_SHOWN);
     } catch (err) {
       this.logger.warn(`No Slides for this reply: ${err}`);
       return [];
     }
   }
+}
+
+/** Whether the keyword reply is NONE, also "NONE." or "Keywords: NONE", but not real keywords that include "none". */
+export function isNone(keywords: string) {
+  return /^\W*(?:keywords\s*:\s*)?none\W*$/i.test(keywords);
 }
 
 // Without the failure notices, or the model may repeat that it is unavailable.
@@ -77,17 +83,11 @@ function withoutFailures(history: Message[]) {
 function toAiMessages(history: Message[], slides: Slide[]): AiMessage[] {
   return [
     { role: 'system', content: systemPrompt(slides) },
-    ...withoutFailures(history).map(({ sender, text }): AiMessage =>
-      sender === BOT_NAME ? { role: 'assistant', content: withoutCitations(text) } : { role: 'user', content: `${sender}: ${text}` },
-    ),
+    ...withoutFailures(history).flatMap(({ sender, text }): AiMessage[] => {
+      if (sender !== BOT_NAME) return [{ role: 'user', content: `${sender}: ${text}` }];
+      // A reply that was only citations is left out: some APIs refuse an empty message.
+      const content = withoutCitations(text);
+      return content ? [{ role: 'assistant', content }] : [];
+    }),
   ];
-}
-
-// Without bot's earlier citations: seeing them, the model writes new ones even when it was given no Slides.
-function withoutCitations(text: string) {
-  return text
-    .split('\n')
-    .filter((line) => !line.trimStart().startsWith('📖'))
-    .join('\n')
-    .trim();
 }

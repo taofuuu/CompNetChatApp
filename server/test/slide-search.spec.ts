@@ -66,6 +66,13 @@ test('prefix lengths, dotted numbers and the Lesson name are searchable', () => 
   expect(hits('wireless').sort()).toEqual(['6.1', '6.2']);
 });
 
+test('a word stuck to the next by a dot is still found', () => {
+  const stuck = new SlideSearch([slide(4, 3, 'Routers forward datagrams.Forwarding table lookup.'), slide(1, 1, 'See www.ietf.org')]);
+
+  expect(stuck.top('forwarding', 3).map(({ slide }) => slide)).toEqual([3]);
+  expect(stuck.top('ietf', 3).map(({ slide }) => slide)).toEqual([1]);
+});
+
 test('no Slides finds nothing', () => {
   expect(new SlideSearch([]).top('tcp', 3)).toEqual([]);
 });
