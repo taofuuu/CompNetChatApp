@@ -13,6 +13,8 @@ export const BOT_UNAVAILABLE = 'bot is unavailable right now';
 const SLIDES_SHOWN = 3;
 /** Plenty for 8 keywords. */
 const KEYWORD_TOKENS = 40;
+/** Shorter than a reply's: when Typhoon stalls, answering without Slides beats making the asker wait. */
+const KEYWORD_SILENCE_MS = 5_000;
 
 /** Whether `text` asks the bot something: it starts with @bot, in any case, and no letter, digit or underscore follows. */
 export function mentionsBot(text: string) {
@@ -54,7 +56,8 @@ export class BotService {
       const questions = withoutFailures(history).filter(({ sender }) => sender !== BOT_NAME);
       const chat = questions.slice(-2).map(({ sender, text }) => `${sender}: ${text}`).join('\n');
       let keywords = '';
-      for await (const text of this.ai.stream([{ role: 'system', content: KEYWORDS_PROMPT }, { role: 'user', content: chat }], KEYWORD_TOKENS)) {
+      const ask: AiMessage[] = [{ role: 'system', content: KEYWORDS_PROMPT }, { role: 'user', content: chat }];
+      for await (const text of this.ai.stream(ask, { maxTokens: KEYWORD_TOKENS, silenceMs: KEYWORD_SILENCE_MS })) {
         keywords += text;
       }
       // Also "NONE." or "Keywords: NONE": otherwise "none" itself would be searched for.
@@ -75,7 +78,16 @@ function toAiMessages(history: Message[], slides: Slide[]): AiMessage[] {
   return [
     { role: 'system', content: systemPrompt(slides) },
     ...withoutFailures(history).map(({ sender, text }): AiMessage =>
-      sender === BOT_NAME ? { role: 'assistant', content: text } : { role: 'user', content: `${sender}: ${text}` },
+      sender === BOT_NAME ? { role: 'assistant', content: withoutCitations(text) } : { role: 'user', content: `${sender}: ${text}` },
     ),
   ];
+}
+
+// Without bot's earlier citations: seeing them, the model writes new ones even when it was given no Slides.
+function withoutCitations(text: string) {
+  return text
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('📖'))
+    .join('\n')
+    .trim();
 }
