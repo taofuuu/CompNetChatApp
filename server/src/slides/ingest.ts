@@ -35,7 +35,10 @@ export async function readSlides(folder: string): Promise<Slide[]> {
 /** One line per Lesson: how many Slides, and how many came out nearly empty. */
 export function report(slides: Slide[]) {
   const byLesson = new Map<number, Slide[]>();
-  for (const slide of slides) byLesson.set(slide.lesson, [...(byLesson.get(slide.lesson) ?? []), slide]);
+  for (const slide of slides) {
+    if (!byLesson.has(slide.lesson)) byLesson.set(slide.lesson, []);
+    byLesson.get(slide.lesson)!.push(slide);
+  }
   return [...byLesson.values()]
     .sort((a, b) => a[0].lesson - b[0].lesson)
     .map((lesson) => {
@@ -55,9 +58,12 @@ async function main() {
   const slides = await readSlides(folder);
   await mongoose.connect(uri);
   try {
-    const model = mongoose.model(Slide.name, SlideSchema);
-    await model.deleteMany({});
-    await model.insertMany(slides);
+    // Into a new collection first, then swapped in by a rename, so a failed run leaves the old Slides in place.
+    const fresh = mongoose.model('FreshSlide', SlideSchema, 'slides_fresh');
+    await fresh.deleteMany({});
+    await fresh.init();
+    await fresh.insertMany(slides);
+    await fresh.collection.rename(mongoose.model(Slide.name, SlideSchema).collection.collectionName, { dropTarget: true });
   } finally {
     await mongoose.disconnect();
   }

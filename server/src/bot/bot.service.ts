@@ -49,13 +49,16 @@ export class BotService {
   private async slidesFor(history: Message[]): Promise<Slide[]> {
     if (!this.slides.loaded) return [];
     try {
-      // The Message before too, so a follow-up like "and UDP?" still finds something.
-      const chat = withoutFailures(history).slice(-2).map(({ sender, text }) => `${sender}: ${text}`).join('\n');
+      // The question before too, so a follow-up like "and UDP?" still finds something. Not bot's replies: a long
+      // answer about TCP would pull the keywords away from the new question.
+      const questions = withoutFailures(history).filter(({ sender }) => sender !== BOT_NAME);
+      const chat = questions.slice(-2).map(({ sender, text }) => `${sender}: ${text}`).join('\n');
       let keywords = '';
       for await (const text of this.ai.stream([{ role: 'system', content: KEYWORDS_PROMPT }, { role: 'user', content: chat }], KEYWORD_TOKENS)) {
         keywords += text;
       }
-      return /^\s*none\s*$/i.test(keywords) ? [] : this.slides.top(keywords, SLIDES_SHOWN);
+      // Also "NONE." or "Keywords: NONE": otherwise "none" itself would be searched for.
+      return /\bnone\b/i.test(keywords) ? [] : this.slides.top(keywords, SLIDES_SHOWN);
     } catch (err) {
       this.logger.warn(`No Slides for this reply: ${err}`);
       return [];
