@@ -1,7 +1,9 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { getConnectionToken, MongooseModule } from '@nestjs/mongoose';
-import type { Connection } from 'mongoose';
+import { getConnectionToken, getModelToken, MongooseModule } from '@nestjs/mongoose';
+import { hash } from 'bcrypt';
+import type { Connection, Model } from 'mongoose';
+import { User } from '../src/users/user.schema';
 import { UsersModule } from '../src/users/users.module';
 import { UsersService } from '../src/users/users.service';
 import { freshDatabaseUri } from './mongo';
@@ -80,4 +82,13 @@ test.each(['abc', 'a'.repeat(20), 'Under_Score_9'])('registering the username %p
 
 test('registering with an empty password is refused', async () => {
   await expect(users.register('Alice', '')).rejects.toThrow('Enter a password.');
+});
+
+test('nobody can register or log in as bot, in any case', async () => {
+  await expect(users.register('Bot', 'secret')).rejects.toThrow('That name is reserved.');
+
+  // An account made before the name was reserved.
+  const model = context.get<Model<User>>(getModelToken(User.name));
+  await model.create({ username: 'bot', usernameLower: 'bot', passwordHash: await hash('secret', 10) });
+  await expect(users.logIn('BOT', 'secret')).rejects.toThrow('Wrong username or password.');
 });

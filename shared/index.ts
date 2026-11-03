@@ -42,6 +42,12 @@ export interface SendMessagePayload {
   text: string;
 }
 
+/** A piece of the bot's reply as it is written. The finished reply then arrives as a normal Message. */
+export interface BotChunk {
+  roomId: string;
+  text: string;
+}
+
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
@@ -49,6 +55,8 @@ export interface ServerToClientEvents {
   groupList: (groups: GroupSummary[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
+  /** The next piece of the bot's reply in a Room the Client is in. */
+  botChunk: (chunk: BotChunk) => void;
 }
 
 export interface ClientToServerEvents {

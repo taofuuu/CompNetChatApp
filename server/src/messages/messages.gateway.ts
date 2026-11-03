@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -13,6 +14,8 @@ import type {
   ServerToClientEvents,
 } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
+import { BOT_NAME } from '../bot/bot-name';
+import { BOT_CONTEXT_MESSAGES, BOT_UNAVAILABLE, BotService, mentionsBot } from '../bot/bot.service';
 import { groupKeyOf } from '../groups/group-room';
 import type { SocketData } from '../socket-data';
 import { MessagesService } from './messages.service';
@@ -25,7 +28,18 @@ type ChatSocket = Socket<ClientToServerEvents, ServerToClientEvents, DefaultEven
 export class MessagesGateway implements OnGatewayConnection {
   @WebSocketServer() private server: ChatServer;
 
-  constructor(private readonly messagesService: MessagesService) {}
+  private readonly logger = new Logger(MessagesGateway.name);
+  /**
+   * Rooms the bot is answering in right now, and the Users who asked. A Room gets one reply at a time, so two can't mix in
+   * its one streaming bubble. A User gets one too: Room ids can be made up, so a per-Room lock alone lets one User start
+   * any number of AI calls. Usernames can't contain `:`, so they never clash with Room ids.
+   */
+  private readonly botAnswering = new Set<string>();
+
+  constructor(
+    private readonly messagesService: MessagesService,
+    private readonly bot: BotService,
+  ) {}
 
   handleConnection(socket: ChatSocket) {
     socket.join(`user:${socket.data.username.toLowerCase()}`);
@@ -54,16 +68,38 @@ export class MessagesGateway implements OnGatewayConnection {
   ): Promise<Ack> {
     const result = await this.messagesService.send(socket.data.username, payload);
     if (result.ok) {
-      const { roomId } = result.message;
-      if (groupKeyOf(roomId) !== undefined) {
-        // Every Client of every Member is in the Group's Socket.IO room, named by its Room id (GroupsGateway).
-        this.server.to(roomId).emit('message', result.message);
-      } else {
-        const parts = roomId.split(':');
-        this.server.to(`user:${parts[0]}`).to(`user:${parts[1]}`).emit('message', result.message);
-      }
+      this.toRoom(result.message.roomId).emit('message', result.message);
+      // Not awaited: the sender's acknowledgement shouldn't wait for the AI.
+      if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId, socket.data.username.toLowerCase());
       return { ok: true };
     }
     return { ok: false, error: result.error };
+  }
+
+  private async answerAsBot(roomId: string, asker: string) {
+    if (this.botAnswering.has(roomId) || this.botAnswering.has(asker)) return;
+    this.botAnswering.add(roomId).add(asker);
+    // Nest doesn't see this promise, so an error here would be an unhandled rejection that stops the whole server.
+    try {
+      const history = await this.messagesService.recent(roomId, BOT_CONTEXT_MESSAGES);
+      const reply = await this.bot.reply(history, (text) => this.toRoom(roomId).emit('botChunk', { roomId, text }));
+      this.toRoom(roomId).emit('message', await this.messagesService.saveBotReply(roomId, reply));
+    } catch (err) {
+      this.logger.error(err);
+      // Not saved, since the database may be what failed. It still ends the streaming bubble.
+      const createdAt = new Date().toISOString();
+      this.toRoom(roomId).emit('message', { roomId, sender: BOT_NAME, text: BOT_UNAVAILABLE, createdAt });
+    } finally {
+      this.botAnswering.delete(roomId);
+      this.botAnswering.delete(asker);
+    }
+  }
+
+  /** Every Client in the Room: a Group's Members through its Socket.IO room, or both Users of a Private Room. */
+  private toRoom(roomId: string) {
+    // Every Client of every Member is in the Group's Socket.IO room, named by its Room id (GroupsGateway).
+    if (groupKeyOf(roomId) !== undefined) return this.server.to(roomId);
+    const [userA, userB] = roomId.split(':');
+    return this.server.to(`user:${userA}`).to(`user:${userB}`);
   }
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Message as SharedMessage, RoomMessagesAck } from '@compnet/shared';
 import type { Model } from 'mongoose';
+import { BOT_NAME } from '../bot/bot-name';
 import { groupKeyOf } from '../groups/group-room';
 import { GroupsService } from '../groups/groups.service';
 import { OnlineListService } from '../online-list/online-list.service';
@@ -67,23 +68,22 @@ export class MessagesService {
       return { ok: false, error: `A Message can be at most ${MAX_MESSAGE_LENGTH} characters.` };
     }
 
-    const now = new Date();
-    const created = await this.messages.create({
-      roomId: cleanRoomId,
-      sender,
-      text: trimmed,
-      createdAt: now,
-    });
+    return { ok: true, message: await this.save(cleanRoomId, sender, trimmed) };
+  }
 
-    return {
-      ok: true,
-      message: {
-        roomId: cleanRoomId,
-        sender,
-        text: trimmed,
-        createdAt: created.createdAt.toISOString(),
-      },
-    };
+  /** Saves the bot's reply. It skips `send`'s checks: the bot is in no Room, and its replies may be longer than a User's Message. */
+  saveBotReply(roomId: string, text: string): Promise<SharedMessage> {
+    return this.save(roomId, BOT_NAME, text);
+  }
+
+  /** The latest `limit` Messages of `roomId`, oldest first. */
+  async recent(roomId: string, limit: number): Promise<SharedMessage[]> {
+    const docs = await this.messages.find({ roomId }).sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
+    return docs.reverse().map(toSharedMessage);
+  }
+
+  private async save(roomId: string, sender: string, text: string): Promise<SharedMessage> {
+    return toSharedMessage(await this.messages.create({ roomId, sender, text, createdAt: new Date() }));
   }
 
   /** Whether `username` may load and send in `roomId`: one of a Private Room's two Users, or a Group's Member (R7, R11). */
@@ -96,11 +96,10 @@ export class MessagesService {
   /** Loads full history for `roomId` in chronological order. */
   private async loadHistory(roomId: string): Promise<SharedMessage[]> {
     const docs = await this.messages.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
-    return docs.map((doc) => ({
-      roomId: doc.roomId,
-      sender: doc.sender,
-      text: doc.text,
-      createdAt: doc.createdAt.toISOString(),
-    }));
+    return docs.map(toSharedMessage);
   }
+}
+
+function toSharedMessage({ roomId, sender, text, createdAt }: Message): SharedMessage {
+  return { roomId, sender, text, createdAt: createdAt.toISOString() };
 }
