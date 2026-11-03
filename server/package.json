@@ -6,7 +6,8 @@
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "oxlint --jest-plugin",
-    "test": "jest"
+    "test": "jest",
+    "slides:ingest": "nest build && node dist/slides/ingest"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.7",
@@ -19,7 +20,8 @@
     "mongoose": "^8.23.0",
     "openai": "^7.45.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "unpdf": "^1.9.1"
   },
   "devDependencies": {
     "@compnet/shared": "*",

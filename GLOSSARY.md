@@ -48,6 +48,14 @@ _Avoid_: Participant, subscriber
 The AI that answers a Message starting with `@bot` in a Private Room. It is not a User: nobody can register or log in as bot, and it never appears in the Online List. Its replies are saved as Messages.
 _Avoid_: Chatbot (reserved for a possible AI feature, not the product), assistant
 
+**Lesson**:
+One of the course's lecture decks, numbered, e.g. Lesson 3 (Transport Layer).
+_Avoid_: Lecture, chapter, week
+
+**Slide**:
+One page of a Lesson's deck, kept as text so bot can answer from it and cite it as "Lesson 3 (Transport Layer), slide 42". Slides are loaded by hand from PDFs and never committed, since the repo is public.
+_Avoid_: Page, document, chunk
+
 **Message**:
 A piece of text a User, or bot, sends into one Room, visible only to that Room's Users (both sides of a Private Room, or a Group's Members, including ones who joined later).
 _Avoid_: Chat, post
