@@ -2,6 +2,7 @@ import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { compare, hash } from 'bcrypt';
 import type { Model } from 'mongoose';
+import { BOT_NAME } from '../bot/bot-name';
 import { RefusalError } from '../refusal-error';
 import { User } from './user.schema';
 
@@ -18,6 +19,7 @@ export class UsersService implements OnModuleInit {
   /** Saves a new User and returns their username. */
   async register(username: string, password: string) {
     if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) throw new RefusalError('A username is 3 to 20 letters, digits or underscores.');
+    if (username.toLowerCase() === BOT_NAME) throw new RefusalError('That name is reserved.');
     if (!password) throw new RefusalError('Enter a password.');
     const passwordHash = await hash(password, 10);
     try {
@@ -32,7 +34,8 @@ export class UsersService implements OnModuleInit {
 
   /** Returns the User's username as they first typed it. */
   async logIn(username: string, password: string) {
-    const user = await this.users.findOne({ usernameLower: username.toLowerCase() });
+    // Also refused here: an account named bot may predate the reservation, and it could post as the bot.
+    const user = username.toLowerCase() === BOT_NAME ? null : await this.users.findOne({ usernameLower: username.toLowerCase() });
     // The same reason either way, so a refusal doesn't reveal which usernames are registered.
     if (!user || !(await compare(password, user.passwordHash))) throw new RefusalError('Wrong username or password.');
     return user.username;

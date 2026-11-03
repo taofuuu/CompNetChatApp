@@ -3,7 +3,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { Groups } from './Groups';
 import { privateRoomId } from './private-room';
-import { Room } from './Room';
+import { BOT_NAME, Room } from './Room';
 
 type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -18,6 +18,8 @@ export function App() {
   const activeRoomId = useRef('');
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, Message[]>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  /** The bot's reply so far, by Room, while it is being written. */
+  const [botDrafts, setBotDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
   function connect(event: FormEvent<HTMLFormElement>) {
@@ -33,6 +35,8 @@ export function App() {
       setError('');
       // The account exists now: a reconnect after a network drop logs in rather than registering again.
       socket.auth = { ...auth, mode: 'login' };
+      // A reply that finished while disconnected never sends its last Message; the history below has it.
+      setBotDrafts({});
       if (activeRoomId.current) {
         socket.emitWithAck('loadMessages', activeRoomId.current).then((r) => {
           if (r.ok) {
@@ -44,7 +48,11 @@ export function App() {
     socket.on('onlineList', setOnlineList);
     // Listened for here, not in <Groups>, so the list sent right after connecting isn't missed.
     socket.on('groupList', setGroups);
+    socket.on('botChunk', ({ roomId, text }) => {
+      setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] || '') + text }));
+    });
     socket.on('message', (message: Message) => {
+      if (message.sender === BOT_NAME) setBotDrafts((prev) => ({ ...prev, [message.roomId]: '' }));
       setMessagesByRoom((prev) => ({
         ...prev,
         [message.roomId]: [...(prev[message.roomId] || []), message],
@@ -161,6 +169,7 @@ export function App() {
               roomId={activeRoom.roomId}
               title={activeRoom.title}
               messages={messagesByRoom[activeRoom.roomId] || []}
+              botDraft={botDrafts[activeRoom.roomId] || ''}
               me={me}
             />
           ) : (
