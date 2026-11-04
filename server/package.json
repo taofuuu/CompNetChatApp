@@ -6,7 +6,8 @@
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "oxlint --jest-plugin",
-    "test": "jest"
+    "test": "jest",
+    "slides:ingest": "nest build && node dist/slides/ingest"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.7",
@@ -31,7 +32,8 @@
     "mongodb-memory-server": "^11.3.0",
     "socket.io-client": "^4.8.4",
     "ts-jest": "^29.4.15",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "unpdf": "^1.9.1"
   },
   "jest": {
     "testEnvironment": "node",
