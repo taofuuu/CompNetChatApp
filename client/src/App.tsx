@@ -8,13 +8,27 @@ import type {
   ServerToClientEvents,
 } from '@compnet/shared';
 import { type FormEvent, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
+import { Banner } from './Banner';
 import { groupRoomId } from './group-room';
 import { Groups } from './Groups';
 import { privateRoomId } from './private-room';
 import { BOT_NAME, Room } from './Room';
 
 type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+
+/** Longer than the server's limits on the bot's first word: past this, the server skipped the @bot. */
+const BOT_PATIENCE_MS = 20_000;
+/** How long a typing bubble lasts without news. Nobody says they stopped: they just stop saying they're typing. */
+const TYPING_SHOWN_MS = 3_000;
+
+/** Makes a state change as a View Transition, styled in styles.css, or plainly in a browser without them. */
+function smoothly(update: () => void) {
+  if (!document.startViewTransition) return update();
+  // Rejects when the browser drops the animation, e.g. in a background tab. The update still happens.
+  document.startViewTransition(() => flushSync(update)).ready.catch(() => {});
+}
 
 export function App() {
   const [username, setUsername] = useState('');
@@ -27,9 +41,24 @@ export function App() {
   const activeRoomId = useRef('');
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, Message[]>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  /** The bot's reply so far, by Room, while it is being written. */
-  const [botDrafts, setBotDrafts] = useState<Record<string, string>>({});
+  /** The bot's reply so far, by Room: empty before its first word, undefined when it isn't answering. */
+  const [botDrafts, setBotDrafts] = useState<Record<string, string | undefined>>({});
+  /** The other Users typing right now, by Room. */
+  const [typers, setTypers] = useState<Record<string, string[]>>({});
+  const typingTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [error, setError] = useState('');
+
+  /** Shows or hides `username`'s typing bubble in `roomId`. Showing it again restarts its time. */
+  function showTyping(roomId: string, username: string, isTyping: boolean) {
+    const timer = `${roomId}/${username}`;
+    clearTimeout(typingTimers.current.get(timer));
+    if (isTyping) typingTimers.current.set(timer, setTimeout(() => showTyping(roomId, username, false), TYPING_SHOWN_MS));
+    setTypers((prev) => {
+      const names = prev[roomId] || [];
+      if (isTyping === names.includes(username)) return prev;
+      return { ...prev, [roomId]: isTyping ? [...names, username] : names.filter((name) => name !== username) };
+    });
+  }
 
   function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,29 +83,46 @@ export function App() {
         });
       }
     });
-    socket.on('onlineList', setOnlineList);
+    socket.on('disconnect', () => setError('Connection lost. Reconnecting…'));
+    // The first list is what lets the chat screen in.
+    let loggedIn = false;
+    socket.on('onlineList', (names) => {
+      if (loggedIn) return setOnlineList(names);
+      loggedIn = true;
+      smoothly(() => setOnlineList(names));
+    });
     // Listened for here, not in <Groups>, so the list sent right after connecting isn't missed.
     socket.on('groupList', setGroups);
     socket.on('botChunk', ({ roomId, text }) => {
-      setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] || '') + text }));
+      setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] ?? '') + text }));
     });
+    socket.on('typing', ({ roomId, username }) => showTyping(roomId, username, true));
     socket.on('message', (message: Message) => {
-      if (message.sender === BOT_NAME) setBotDrafts((prev) => ({ ...prev, [message.roomId]: '' }));
+      const { roomId } = message;
+      showTyping(roomId, message.sender, false);
+      if (message.sender === BOT_NAME) {
+        setBotDrafts((prev) => ({ ...prev, [roomId]: undefined }));
+      } else if (/^@bot\b/i.test(message.text)) {
+        setBotDrafts((prev) => ({ ...prev, [roomId]: prev[roomId] ?? '' }));
+        // shortcut: the server stays silent when it skips an @bot because bot is busy, so stop waiting after a while; have it say so if Users hit this.
+        setTimeout(() => setBotDrafts((prev) => (prev[roomId] ? prev : { ...prev, [roomId]: undefined })), BOT_PATIENCE_MS);
+      }
       setMessagesByRoom((prev) => ({
         ...prev,
-        [message.roomId]: [...(prev[message.roomId] || []), message],
+        [roomId]: [...(prev[roomId] || []), message],
       }));
-      if (message.roomId !== activeRoomId.current) {
+      if (roomId !== activeRoomId.current) {
         setUnreadCounts((prev) => ({
           ...prev,
-          [message.roomId]: (prev[message.roomId] || 0) + 1,
+          [roomId]: (prev[roomId] || 0) + 1,
         }));
       }
     });
     socket.on('connect_error', (err) => {
-      setError(err.message);
-      if (socket.active) return; // a network problem: Socket.IO keeps retrying by itself
+      // A network problem: Socket.IO keeps retrying by itself.
+      if (socket.active) return setError("Can't reach the server. Still trying…");
       // Refused by the server: back to the login form.
+      setError(err.message);
       setConnecting(false);
       setSocket(undefined);
       setOnlineList(undefined);
@@ -98,8 +144,8 @@ export function App() {
       const result = await request;
       if (result.ok) {
         setError('');
+        const isNewRoom = activeRoomId.current !== result.roomId;
         activeRoomId.current = result.roomId;
-        setActiveRoom({ roomId: result.roomId, title });
         setMessagesByRoom((prev) => ({
           ...prev,
           [result.roomId]: result.messages,
@@ -108,6 +154,8 @@ export function App() {
           ...prev,
           [result.roomId]: 0,
         }));
+        // Last, and alone: the transition starts a frame later, and the updates above mustn't wait for it.
+        if (isNewRoom) smoothly(() => setActiveRoom({ roomId: result.roomId, title }));
       } else {
         setError(result.error);
       }
@@ -118,43 +166,65 @@ export function App() {
 
   if (!socket || !onlineList) {
     return (
-      <main>
-        <h1>Chat App</h1>
-        <form onSubmit={connect}>
-          <label>
-            Username <input value={username} onChange={(event) => setUsername(event.target.value)} autoFocus />
-          </label>{' '}
-          <label>
-            Password{' '}
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </label>{' '}
-          <button value="login" disabled={connecting}>
-            Log in
-          </button>{' '}
-          <button value="register" disabled={connecting}>
-            Register
-          </button>
+      <main className="login">
+        <form className="login-card" onSubmit={connect}>
+          <h1 className="brand">Chat App</h1>
+          <p className="login-tagline">Private Rooms, Groups, and a bot who read the Slides.</p>
+          <label className="field">
+            Username
+            <input
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+              autoFocus
+            />
+            <small>3–20 letters, digits or underscores</small>
+          </label>
+          <label className="field">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          <Banner text={error || (connecting ? 'Connecting…' : '')} />
+          <div className="login-actions">
+            <button className="button" value="login" disabled={connecting}>
+              Log in
+            </button>
+            <button className="button button-quiet" value="register" disabled={connecting}>
+              Register
+            </button>
+          </div>
         </form>
-        {error && <p role="alert">{error}</p>}
       </main>
     );
   }
 
   const me = username.trim().toLowerCase();
+  const activeGroup = groups.find((group) => groupRoomId(group.name) === activeRoom?.roomId);
+  const memberCount = activeGroup?.members.length;
+  const subtitle = activeGroup
+    ? `${memberCount} ${memberCount === 1 ? 'Member' : 'Members'}: ${activeGroup.members.join(', ')}`
+    : activeRoom && onlineList.includes(activeRoom.title)
+      ? 'Online'
+      : "Offline. They'll see your Messages when they log in.";
   return (
-    <main className="app-container">
-      <h1>Chat App</h1>
-      {error && <p role="alert">{error}</p>}
-      <div className="chat-layout">
-        <aside className="sidebar">
+    <main className="chat-layout">
+      <aside className="sidebar">
+        <h1 className="brand">Chat App</h1>
+        <section>
           <h2>Online</h2>
-          <ul className="online-list">
+          <ul>
             {onlineList.map((name) => {
               const isMe = name.toLowerCase() === me;
               if (isMe) {
                 return (
-                  <li key={name} className="online-user-item">
-                    <span>{name} (you)</span>
+                  <li key={name} className="row enter">
+                    <span className="presence" />
+                    {name} (you)
                   </li>
                 );
               }
@@ -162,47 +232,58 @@ export function App() {
               const unread = unreadCounts[roomId] || 0;
               const isSelected = activeRoom?.roomId === roomId;
               return (
-                <li key={name} className="online-user-item">
+                <li key={name} className="enter">
                   <button
                     type="button"
-                    className={`user-button ${isSelected ? 'active' : ''}`}
+                    className={`row row-button ${isSelected ? 'active' : ''}`}
+                    aria-current={isSelected}
                     onClick={() => openPrivateRoom(name)}
                   >
+                    <span className="presence" />
                     {name}
-                    {unread > 0 && <span className="unread-count"> ({unread})</span>}
+                    {unread > 0 && (
+                      // The key restarts the pop on every new count.
+                      <span key={unread} className="unread-count" aria-label={`${unread} unread`}>
+                        {unread}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
             })}
           </ul>
-          <Groups
-            socket={socket}
-            groups={groups}
-            me={me}
-            activeRoomId={activeRoom?.roomId}
-            unreadCounts={unreadCounts}
-            onOpen={openGroupRoom}
-          />
-        </aside>
-
-        <section className="main-panel">
-          {activeRoom ? (
-            <Room
-              key={activeRoom.roomId}
-              socket={socket}
-              roomId={activeRoom.roomId}
-              title={activeRoom.title}
-              messages={messagesByRoom[activeRoom.roomId] || []}
-              botDraft={botDrafts[activeRoom.roomId] || ''}
-              me={me}
-            />
-          ) : (
-            <div className="empty-panel">
-              <p>Select an Online User to open a Private Room, or a Group you're a Member of.</p>
-            </div>
-          )}
         </section>
-      </div>
+        <Groups
+          socket={socket}
+          groups={groups}
+          me={me}
+          activeRoomId={activeRoom?.roomId}
+          unreadCounts={unreadCounts}
+          onOpen={openGroupRoom}
+        />
+      </aside>
+
+      <section className="main-panel">
+        <Banner text={error} />
+        {activeRoom ? (
+          <Room
+            key={activeRoom.roomId}
+            socket={socket}
+            roomId={activeRoom.roomId}
+            title={activeRoom.title}
+            subtitle={subtitle}
+            messages={messagesByRoom[activeRoom.roomId] || []}
+            botDraft={botDrafts[activeRoom.roomId]}
+            typers={typers[activeRoom.roomId] || []}
+            me={me}
+          />
+        ) : (
+          <div className="empty-panel">
+            <h2>Pick a Room</h2>
+            <p>Click an Online User to open a Private Room, or open a Group you're a Member of.</p>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

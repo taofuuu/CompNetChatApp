@@ -1,6 +1,7 @@
 import type { Ack, ClientToServerEvents, GroupSummary, ServerToClientEvents } from '@compnet/shared';
 import { type FormEvent, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { Banner } from './Banner';
 import { groupRoomId } from './group-room';
 
 interface Props {
@@ -53,36 +54,49 @@ export function Groups({ socket, groups, me, activeRoomId, unreadCounts, onOpen 
   return (
     <section>
       <h2>Groups</h2>
-      <form onSubmit={create}>
-        <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Group name" />{' '}
-        <button disabled={busy}>Create Group</button>
+      <form className="group-form" onSubmit={create}>
+        <input
+          aria-label="Group name"
+          value={newName}
+          onChange={(event) => setNewName(event.target.value)}
+          placeholder="Group name"
+        />
+        <button className="button button-quiet" disabled={busy}>
+          Create Group
+        </button>
       </form>
-      {error && <p role="alert">{error}</p>}
-      <ul>
+      <Banner text={error} />
+      <ul className="group-list">
         {groups.map((group) => {
           const roomId = groupRoomId(group.name);
           const unread = unreadCounts[roomId] || 0;
+          const isSelected = activeRoomId === roomId;
           return (
-            <li key={group.name}>
+            <li key={group.name} className="enter">
               {group.members.some((member) => member.toLowerCase() === me) ? (
                 <button
                   type="button"
-                  className={`user-button ${activeRoomId === roomId ? 'active' : ''}`}
+                  className={`row row-button ${isSelected ? 'active' : ''}`}
+                  aria-current={isSelected}
                   onClick={() => onOpen(group.name)}
                 >
                   <strong>{group.name}</strong>
-                  {unread > 0 && <span className="unread-count"> ({unread})</span>}
+                  {unread > 0 && (
+                    // The key restarts the pop on every new count.
+                    <span key={unread} className="unread-count" aria-label={`${unread} unread`}>
+                      {unread}
+                    </span>
+                  )}
                 </button>
               ) : (
-                <>
-                  <strong>{group.name}</strong>{' '}
-                  <button disabled={busy} onClick={() => join(group.name)}>
+                <div className="row">
+                  <strong>{group.name}</strong>
+                  <button className="join-button" disabled={busy} onClick={() => join(group.name)}>
                     Join
                   </button>
-                </>
+                </div>
               )}
-              <br />
-              <small>Members: {group.members.join(', ')}</small>
+              <small className="group-members">Members: {group.members.join(', ')}</small>
             </li>
           );
         })}
