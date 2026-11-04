@@ -253,6 +253,10 @@ input:focus-visible {
   padding: 0 0.5rem;
 }
 
+.logout {
+  margin-top: auto;
+}
+
 .sidebar h2 {
   margin-bottom: 0.3rem;
   padding: 0 0.5rem;

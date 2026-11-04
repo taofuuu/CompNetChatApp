@@ -261,6 +261,10 @@ export function App() {
           unreadCounts={unreadCounts}
           onOpen={openGroupRoom}
         />
+        {/* A login lives only in this page: reloading closes the socket and forgets the password and every Message. */}
+        <button type="button" className="button button-quiet logout" onClick={() => location.reload()}>
+          Log out
+        </button>
       </aside>
 
       <section className="main-panel">
