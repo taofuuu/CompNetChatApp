@@ -45,7 +45,7 @@ A User who has created or joined a Group. Membership never ends.
 _Avoid_: Participant, subscriber
 
 **bot**:
-The AI that answers a Message starting with `@bot` in a Private Room. It is not a User: nobody can register or log in as bot, and it never appears in the Online List. Its replies are saved as Messages.
+The AI that answers a Message starting with `@bot` in any Room: a Private Room or a Group. It is not a User: nobody can register or log in as bot, and it never appears in the Online List. Its replies are saved as Messages.
 _Avoid_: Chatbot (reserved for a possible AI feature, not the product), assistant
 
 **Message**:
