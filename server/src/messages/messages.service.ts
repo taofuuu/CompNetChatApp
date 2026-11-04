@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import type { Message as SharedMessage, RoomMessagesAck } from '@compnet/shared';
 import type { Model } from 'mongoose';
 import { BOT_NAME } from '../bot/bot-name';
+import { groupKeyOf } from '../groups/group-room';
+import { GroupsService } from '../groups/groups.service';
 import { OnlineListService } from '../online-list/online-list.service';
 import { Message } from './message.schema';
 import { isUserInPrivateRoom, privateRoomId } from './private-room';
@@ -14,6 +16,7 @@ export class MessagesService {
   constructor(
     @InjectModel(Message.name) private readonly messages: Model<Message>,
     private readonly onlineList: OnlineListService,
+    private readonly groups: GroupsService,
   ) {}
 
   /**
@@ -41,7 +44,7 @@ export class MessagesService {
   async loadMessages(requester: string, roomIdInput: unknown): Promise<RoomMessagesAck> {
     const roomId = typeof roomIdInput === 'string' ? roomIdInput.trim() : '';
     if (!roomId) return { ok: false, error: 'Invalid room id.' };
-    if (!isUserInPrivateRoom(requester, roomId)) {
+    if (!(await this.isInRoom(requester, roomId))) {
       return { ok: false, error: 'You are not in this Room.' };
     }
     const messages = await this.loadHistory(roomId);
@@ -56,7 +59,7 @@ export class MessagesService {
     const { roomId, text } = (payload ?? {}) as { roomId?: unknown; text?: unknown };
     const cleanRoomId = typeof roomId === 'string' ? roomId.trim() : '';
     if (!cleanRoomId) return { ok: false, error: 'Invalid room id.' };
-    if (!isUserInPrivateRoom(sender, cleanRoomId)) {
+    if (!(await this.isInRoom(sender, cleanRoomId))) {
       return { ok: false, error: 'You are not in this Room.' };
     }
     const trimmed = typeof text === 'string' ? text.trim() : '';
@@ -81,6 +84,13 @@ export class MessagesService {
 
   private async save(roomId: string, sender: string, text: string): Promise<SharedMessage> {
     return toSharedMessage(await this.messages.create({ roomId, sender, text, createdAt: new Date() }));
+  }
+
+  /** Whether `username` may load and send in `roomId`: one of a Private Room's two Users, or a Group's Member (R7, R11). */
+  private async isInRoom(username: string, roomId: string): Promise<boolean> {
+    const groupKey = groupKeyOf(roomId);
+    if (groupKey !== undefined) return this.groups.isMember(groupKey, username);
+    return isUserInPrivateRoom(username, roomId);
   }
 
   /** Loads full history for `roomId` in chronological order. */

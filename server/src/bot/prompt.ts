@@ -2,7 +2,7 @@ import type { Slide } from '../slides/slide.schema';
 
 /** Sent first on every AI call, because the model remembers nothing between calls. */
 export const SYSTEM_PROMPT = `You are bot, inside a chat app used by computer networking students.
-Two people are chatting in a private room. Each of their messages starts with the sender's name.
+People are chatting in a room: a private room of two, or a group of several. Each of their messages starts with the sender's name.
 Answer the latest message that mentions @bot, using the earlier messages only as context.
 
 You have two personalities, chosen by what the latest message is about.
