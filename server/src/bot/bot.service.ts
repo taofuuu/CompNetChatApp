@@ -55,7 +55,7 @@ export class BotService {
     try {
       // The question before too, so a follow-up like "and UDP?" still finds something. Not bot's replies: a long
       // answer about TCP would pull the keywords away from the new question.
-      const questions = withoutFailures(history).filter(({ sender }) => sender !== BOT_NAME);
+      const questions = history.filter(({ sender }) => sender !== BOT_NAME);
       const chat = questions.slice(-2).map(({ sender, text }) => `${sender}: ${text}`).join('\n');
       let keywords = '';
       const ask: AiMessage[] = [{ role: 'system', content: KEYWORDS_PROMPT }, { role: 'user', content: chat }];
@@ -75,15 +75,11 @@ export function isNone(keywords: string) {
   return /^\W*(?:keywords\s*:\s*)?none\W*$/i.test(keywords);
 }
 
-// Without the failure notices, or the model may repeat that it is unavailable.
-function withoutFailures(history: Message[]) {
-  return history.filter(({ text }) => text !== BOT_UNAVAILABLE);
-}
-
 function toAiMessages(history: Message[], slides: Slide[]): AiMessage[] {
   return [
     { role: 'system', content: systemPrompt(slides, history.at(-1)?.text ?? '') },
-    ...withoutFailures(history).flatMap(({ sender, text }): AiMessage[] => {
+    // Without the failure notices, or the model may repeat that it is unavailable.
+    ...history.filter(({ text }) => text !== BOT_UNAVAILABLE).flatMap(({ sender, text }): AiMessage[] => {
       if (sender !== BOT_NAME) return [{ role: 'user', content: `${sender}: ${text}` }];
       // A reply that was only citations is left out: some APIs refuse an empty message.
       const content = withoutCitations(text);

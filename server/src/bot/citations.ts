@@ -1,7 +1,6 @@
 import type { Slide } from '../slides/slide.schema';
 import { slideLabel } from './prompt';
 
-const CITATION = '📖';
 /** As the prompt asks. */
 const MAX_CITATIONS = 2;
 
@@ -12,14 +11,9 @@ const MAX_CITATIONS = 2;
 export function keepCitationsOf(reply: string, slides: Slide[]) {
   const labels = new Set(slides.map(slideLabel));
   let cited = 0;
+  // Every 📖, wherever it is: the model doesn't always put a citation on its own line.
   return reply
-    .split('\n')
-    .filter((line) => {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith(CITATION)) return true;
-      return labels.has(trimmed.slice(CITATION.length).trim()) && ++cited <= MAX_CITATIONS;
-    })
-    .join('\n')
+    .replace(/📖([^\n📖]*)/gu, (citation, label: string) => (labels.has(label.trim()) && ++cited <= MAX_CITATIONS ? citation : ''))
     .trim();
 }
 

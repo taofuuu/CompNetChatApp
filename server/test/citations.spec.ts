@@ -19,6 +19,12 @@ test('an invented citation is dropped', () => {
   expect(keepCitationsOf('TCP uses a handshake.\n📖 Lesson 3 (Transport Layer), slide 42', given)).toBe('TCP uses a handshake.');
 });
 
+test('an invented citation in the middle of a line is dropped too', () => {
+  expect(keepCitationsOf('TCP ใช้ 3-way handshake ครับ 📖 Lesson 3 (Transport Layer), slide 42', given)).toBe(
+    'TCP ใช้ 3-way handshake ครับ',
+  );
+});
+
 test('with no Slides given, every citation is dropped', () => {
   expect(keepCitationsOf('Try pad thai.\n  📖 Lesson 3 (Transport Layer), slide 12', [])).toBe('Try pad thai.');
 });
