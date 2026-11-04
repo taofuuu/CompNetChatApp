@@ -55,6 +55,11 @@ export class GroupsService implements OnModuleInit {
     return { ok: false, error: group ? 'You are already a Member of this Group.' : 'There is no such Group.' };
   }
 
+  /** Whether `username` is a Member of the Group whose lowercase name is `key` (R11). */
+  async isMember(key: string, username: string): Promise<boolean> {
+    return (await this.groups.exists({ key, memberKeys: username.toLowerCase() })) !== null;
+  }
+
   /** Every Group with its Members, oldest first (R9). */
   async list(): Promise<GroupSummary[]> {
     const groups = await this.groups.find().sort({ _id: 1 }).lean();

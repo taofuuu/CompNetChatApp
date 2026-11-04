@@ -1,6 +1,15 @@
-import type { AuthMode, ClientToServerEvents, GroupSummary, HandshakeAuth, Message, ServerToClientEvents } from '@compnet/shared';
+import type {
+  AuthMode,
+  ClientToServerEvents,
+  GroupSummary,
+  HandshakeAuth,
+  Message,
+  RoomMessagesAck,
+  ServerToClientEvents,
+} from '@compnet/shared';
 import { type FormEvent, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { groupRoomId } from './group-room';
 import { Groups } from './Groups';
 import { privateRoomId } from './private-room';
 import { BOT_NAME, Room } from './Room';
@@ -75,14 +84,22 @@ export function App() {
     setSocket(socket);
   }
 
-  async function openPrivateRoom(targetUser: string) {
-    if (!socket) return;
+  function openPrivateRoom(targetUser: string) {
+    if (socket) showRoom(targetUser, socket.timeout(10_000).emitWithAck('openPrivateRoom', targetUser));
+  }
+
+  function openGroupRoom(name: string) {
+    if (socket) showRoom(name, socket.timeout(10_000).emitWithAck('loadMessages', groupRoomId(name)));
+  }
+
+  /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
+  async function showRoom(title: string, request: Promise<RoomMessagesAck>) {
     try {
-      const result = await socket.timeout(10_000).emitWithAck('openPrivateRoom', targetUser);
+      const result = await request;
       if (result.ok) {
         setError('');
         activeRoomId.current = result.roomId;
-        setActiveRoom({ roomId: result.roomId, title: targetUser });
+        setActiveRoom({ roomId: result.roomId, title });
         setMessagesByRoom((prev) => ({
           ...prev,
           [result.roomId]: result.messages,
@@ -158,7 +175,14 @@ export function App() {
               );
             })}
           </ul>
-          <Groups socket={socket} groups={groups} me={me} />
+          <Groups
+            socket={socket}
+            groups={groups}
+            me={me}
+            activeRoomId={activeRoom?.roomId}
+            unreadCounts={unreadCounts}
+            onOpen={openGroupRoom}
+          />
         </aside>
 
         <section className="main-panel">
@@ -174,7 +198,7 @@ export function App() {
             />
           ) : (
             <div className="empty-panel">
-              <p>Select an Online User to open a Private Room.</p>
+              <p>Select an Online User to open a Private Room, or a Group you're a Member of.</p>
             </div>
           )}
         </section>

@@ -16,6 +16,7 @@ import type {
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
 import { BOT_NAME } from '../bot/bot-name';
 import { BOT_CONTEXT_MESSAGES, BOT_UNAVAILABLE, BotService, mentionsBot } from '../bot/bot.service';
+import { groupKeyOf } from '../groups/group-room';
 import type { SocketData } from '../socket-data';
 import { MessagesService } from './messages.service';
 
@@ -94,8 +95,10 @@ export class MessagesGateway implements OnGatewayConnection {
     }
   }
 
-  /** Every Client of the Room's two Users. */
+  /** Every Client in the Room: a Group's Members through its Socket.IO room, or both Users of a Private Room. */
   private toRoom(roomId: string) {
+    // Every Client of every Member is in the Group's Socket.IO room, named by its Room id (GroupsGateway).
+    if (groupKeyOf(roomId) !== undefined) return this.server.to(roomId);
     const [userA, userB] = roomId.split(':');
     return this.server.to(`user:${userA}`).to(`user:${userB}`);
   }

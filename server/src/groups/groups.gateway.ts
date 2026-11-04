@@ -10,6 +10,7 @@ import {
 import type { Ack, ClientToServerEvents, ServerToClientEvents } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
 import type { SocketData } from '../socket-data';
+import { groupRoomId } from './group-room';
 import { GroupsService } from './groups.service';
 
 type ChatServer = Server<ClientToServerEvents, ServerToClientEvents, DefaultEventsMap, SocketData>;
@@ -31,6 +32,14 @@ export class GroupsGateway implements OnGatewayConnection {
     try {
       const started = this.latest;
       const groups = await this.groups.list();
+      // Joining a room after the disconnect has cleaned up would leave this socket in it for good.
+      if (!socket.connected) return;
+      // Into the Socket.IO room of every Group this User is a Member of, so their Group Messages reach it (R11).
+      // A Group Message sent while the list was being read isn't received live, but its Room's history has it.
+      const me = socket.data.username.toLowerCase();
+      for (const group of groups) {
+        if (group.members.some((member) => member.toLowerCase() === me)) void socket.join(groupRoomId(group.name));
+      }
       // A newer broadcast already reached this socket.
       if (started === this.latest) socket.emit('groupList', groups);
     } catch (err) {
@@ -42,7 +51,10 @@ export class GroupsGateway implements OnGatewayConnection {
   @SubscribeMessage('createGroup')
   async createGroup(@ConnectedSocket() socket: ChatSocket, @MessageBody() name: unknown): Promise<Ack> {
     const result = await this.groups.create(name, socket.data.username);
-    if (result.ok) await this.sendGroupList();
+    if (result.ok) {
+      this.addToGroupRoom(socket.data.username, name as string);
+      await this.sendGroupList();
+    }
     return result;
   }
 
@@ -50,8 +62,20 @@ export class GroupsGateway implements OnGatewayConnection {
   async joinGroup(@ConnectedSocket() socket: ChatSocket, @MessageBody() name: unknown): Promise<Ack> {
     // Who joins always comes from the connection, never from the payload, so nobody can add someone else (R10).
     const result = await this.groups.join(name, socket.data.username);
-    if (result.ok) await this.sendGroupList();
+    if (result.ok) {
+      this.addToGroupRoom(socket.data.username, name as string);
+      await this.sendGroupList();
+    }
     return result;
+  }
+
+  /**
+   * Puts every Client of the new Member, not just the one that asked, into the Group's Socket.IO room (R11).
+   * Done before the acknowledgement, so once the Client hears it's a Member, it receives every new Message.
+   * Relies on the `user:` room each Client joins on connect (MessagesGateway).
+   */
+  private addToGroupRoom(username: string, groupName: string) {
+    this.server.in(`user:${username.toLowerCase()}`).socketsJoin(groupRoomId(groupName));
   }
 
   private async sendGroupList() {
