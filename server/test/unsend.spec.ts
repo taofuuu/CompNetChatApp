@@ -134,7 +134,7 @@ test('a sender no longer in the Group is refused until they rejoin', async () =>
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
   const { id } = await send(bob, '#study', 'Oops');
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
 
   expect(await bob.socket.emitWithAck('unsendMessage', id!)).toEqual({ ok: false, error: 'You are not in this Room.' });
 

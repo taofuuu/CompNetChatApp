@@ -57,6 +57,19 @@ export interface SendMessagePayload {
   text: string;
 }
 
+/** The payload for leaving a Group. */
+export interface LeaveGroupPayload {
+  name: string;
+  /** Set once the User has agreed that, if they turn out to be the last Member, leaving deletes the Group. */
+  confirmed?: boolean;
+}
+
+/** The server's answer to leaving a Group. */
+export type LeaveGroupAck =
+  | { ok: true; deleted?: boolean }
+  /** `lastMember` means they stay a Member until they ask again with `confirmed`. */
+  | { ok: false; error: string; lastMember?: boolean };
+
 /** A piece of the bot's reply as it is written. The finished reply then arrives as a normal Message. */
 export interface BotChunk {
   roomId: string;
@@ -78,7 +91,7 @@ export interface Typing {
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
-  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join or leave. */
+  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join, leave or deletion. */
   groupList: (groups: GroupSummary[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
@@ -97,8 +110,8 @@ export interface ClientToServerEvents {
   createGroup: (name: string, ack: (result: Ack) => void) => void;
   /** Adds the sender, and only the sender, to the Group named `name`. */
   joinGroup: (name: string, ack: (result: Ack) => void) => void;
-  /** Removes the sender, and only the sender, from the Group named `name`. */
-  leaveGroup: (name: string, ack: (result: Ack) => void) => void;
+  /** Removes the sender, and only the sender, from the Group. The last Member is refused unless `confirmed`, which deletes the Group. */
+  leaveGroup: (payload: LeaveGroupPayload, ack: (result: LeaveGroupAck) => void) => void;
   /** Opens the Private Room between the sender and `targetUsername`, returning the Room id and history. */
   openPrivateRoom: (targetUsername: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Loads the message history for `roomId`. */

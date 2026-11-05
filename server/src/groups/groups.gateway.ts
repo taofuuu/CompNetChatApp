@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { Ack, ClientToServerEvents, GroupSummary, ServerToClientEvents } from '@compnet/shared';
+import type { Ack, ClientToServerEvents, GroupSummary, LeaveGroupAck, ServerToClientEvents } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
 import type { SocketData } from '../socket-data';
 import { groupRoomId } from './group-room';
@@ -75,15 +75,16 @@ export class GroupsGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('leaveGroup')
-  async leaveGroup(@ConnectedSocket() socket: ChatSocket, @MessageBody() name: unknown): Promise<Ack> {
+  async leaveGroup(@ConnectedSocket() socket: ChatSocket, @MessageBody() payload: unknown): Promise<LeaveGroupAck> {
+    const { name, confirmed } = (payload ?? {}) as { name?: unknown; confirmed?: unknown };
     // Who leaves always comes from the connection, never from the payload, so nobody can remove someone else.
-    const result = await this.groups.leave(name, socket.data.username);
+    const result = await this.groups.leave(name, socket.data.username, confirmed === true);
     if (result.ok) {
       // Out of the Socket.IO room first, so the Announcement goes to the remaining Members only.
       this.server.in(`user:${socket.data.username.toLowerCase()}`).socketsLeave(groupRoomId(name as string));
       // Before the Announcement: sendGroupList counts the change at once, in the same tick as the line above, so a Client connecting now reads the list again.
       await this.sendGroupList();
-      await this.announce(name as string, `${socket.data.username} left the Group`);
+      if (!result.deleted) await this.announce(name as string, `${socket.data.username} left the Group`);
     }
     return result;
   }

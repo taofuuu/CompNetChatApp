@@ -1,21 +1,31 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Ack, Announcement as SharedAnnouncement, GroupSummary } from '@compnet/shared';
+import type { Ack, Announcement as SharedAnnouncement, GroupSummary, LeaveGroupAck } from '@compnet/shared';
 import type { Model } from 'mongoose';
+import { Message } from '../messages/message.schema';
 import { Announcement } from './announcement.schema';
 import { Group } from './group.schema';
+import { groupRoomId } from './group-room';
 
 export const MAX_GROUP_NAME_LENGTH = 30;
 
 /**
- * Groups, their Members and their Announcements, saved in MongoDB. Knows nothing about sockets: the gateway passes in who is asking.
+ * Groups, their Members and their Announcements, saved in MongoDB, and the end of a deleted Group's Messages.
+ * Knows nothing about sockets: the gateway passes in who is asking.
  * There is deliberately no way to add someone else to a Group (R10).
  */
 @Injectable()
 export class GroupsService implements OnModuleInit {
+  /**
+   * The latest deletion of each Group's Room. In memory: only work running right now needs to know.
+   * shortcut: never pruned, one small entry per deleted Group name until a restart; prune it if names ever churn.
+   */
+  private readonly deletions = new Map<string, symbol>();
+
   constructor(
     @InjectModel(Group.name) private readonly groups: Model<Group>,
     @InjectModel(Announcement.name) private readonly announcements: Model<Announcement>,
+    @InjectModel(Message.name) private readonly messages: Model<Message>,
   ) {}
 
   async onModuleInit() {
@@ -42,6 +52,8 @@ export class GroupsService implements OnModuleInit {
       if ((err as { code?: number }).code === 11000) return { ok: false, error: `A Group named ${trimmed} already exists.` };
       throw err;
     }
+    // Whatever an earlier Group with this name left: an Announcement saved as it was deleted, or a wipe the server died during. Before anyone hears of this Group.
+    await this.wipeHistory(groupRoomId(trimmed));
     return { ok: true };
   }
 
@@ -59,10 +71,22 @@ export class GroupsService implements OnModuleInit {
     return { ok: false, error: group ? 'You are already a Member of this Group.' : 'There is no such Group.' };
   }
 
-  /** Removes `username`, and only them, from the Group named `name`. The last Member is refused, so a Group is never empty. */
-  async leave(name: unknown, username: string): Promise<Ack> {
+  /**
+   * Removes `username`, and only them, from the Group named `name`.
+   * The last Member is refused unless `confirmed`, which deletes the Group, so its history is never wiped without a prompt and a Group is never empty.
+   */
+  async leave(name: unknown, username: string, confirmed: boolean): Promise<LeaveGroupAck> {
     const key = typeof name === 'string' ? name.trim().toLowerCase() : '';
     const userKey = username.toLowerCase();
+    // One atomic delete that only matches while they are alone: a User who joined first keeps the Group alive, and one joining after finds no Group.
+    // Before the wipe, so the history is never lost while the Group has a Member.
+    // shortcut: the name is free just before the wipe ends, so a Group created in that moment could lose its first Announcement; hold the name until then if Users hit this.
+    if (confirmed && (await this.groups.findOneAndDelete({ key, memberKeys: [userKey] }))) {
+      const roomId = groupRoomId(key);
+      this.deletions.set(roomId, Symbol());
+      await this.wipeHistory(roomId);
+      return { ok: true, deleted: true };
+    }
     // One atomic update that only matches while someone else stays, so a double click or two Members leaving at once can't go wrong.
     const left = await this.groups.findOneAndUpdate(
       { key, memberKeys: userKey, 'memberKeys.1': { $exists: true } },
@@ -72,12 +96,18 @@ export class GroupsService implements OnModuleInit {
     const group = await this.groups.findOne({ key }).lean();
     if (!group) return { ok: false, error: 'There is no such Group.' };
     if (!group.memberKeys.includes(userKey)) return { ok: false, error: 'You are not a Member of this Group.' };
-    return { ok: false, error: "You are the last Member of this Group, so you can't leave it." };
+    return { ok: false, lastMember: true, error: 'You are the last Member of this Group: leaving deletes it for good.' };
   }
 
   /** Whether `username` is a Member of the Group whose lowercase name is `key` (R11). */
   async isMember(key: string, username: string): Promise<boolean> {
     return (await this.groups.exists({ key, memberKeys: username.toLowerCase() })) !== null;
+  }
+
+  /** Returns a check of whether the Group of `roomId` has been deleted since this call, even if a new Group has taken its name. */
+  watchForDeletion(roomId: string) {
+    const before = this.deletions.get(roomId);
+    return () => this.deletions.get(roomId) !== before;
   }
 
   /** Every Group with its Members, oldest first (R9). */
@@ -95,6 +125,11 @@ export class GroupsService implements OnModuleInit {
   async announcementsOf(roomId: string): Promise<SharedAnnouncement[]> {
     const docs = await this.announcements.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
     return docs.map(toSharedAnnouncement);
+  }
+
+  /** Deletes every Message and Announcement of a Group's Room. */
+  private async wipeHistory(roomId: string) {
+    await Promise.all([this.messages.deleteMany({ roomId }), this.announcements.deleteMany({ roomId })]);
   }
 }
 

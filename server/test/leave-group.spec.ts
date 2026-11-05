@@ -32,7 +32,7 @@ test("leaving removes only the User who asked, and every Client sees it live, in
     await client.next('groupList'); // Bob's join
   }
 
-  expect(await bob.socket.emitWithAck('leaveGroup', 'study')).toEqual({ ok: true });
+  expect(await bob.socket.emitWithAck('leaveGroup', { name: 'study' })).toEqual({ ok: true });
 
   for (const client of everyClient) {
     expect(await client.next('groupList')).toEqual([{ name: 'Study', members: ['Alice'] }]);
@@ -52,7 +52,7 @@ test("the remaining Members see the Announcement, with the name as registered, a
   await settle();
   const leavers = [bob, bob2].map(watchFor('announcement'));
 
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
 
   for (const client of [alice, alice2]) {
     expect(await client.next('announcement')).toMatchObject({ roomId: '#study', text: 'Bob left the Group' });
@@ -68,7 +68,7 @@ test("all the leaver's Clients stop receiving Messages and typing at once, and s
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
 
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
 
   const leavers = [bob, bob2].flatMap((client) => [watchFor('message')(client), watchFor('typing')(client)]);
   const aliceTyping = watchFor('typing')(alice);
@@ -101,7 +101,7 @@ test('a reply bot is still writing stops reaching the leaver, and the remaining 
   await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: '@bot hello' });
   for (const client of [alice, bob, bob2]) await client.next('botChunk');
 
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
   const leavers = [bob, bob2].flatMap((client) => [watchFor('botChunk')(client), watchFor('message')(client)]);
   finishReply();
 
@@ -119,8 +119,8 @@ test('a non-Member or an unknown Group is refused, and nothing is announced', as
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
 
-  expect(await carol.socket.emitWithAck('leaveGroup', 'Study')).toEqual({ ok: false, error: 'You are not a Member of this Group.' });
-  expect(await bob.socket.emitWithAck('leaveGroup', 'Nowhere')).toEqual({ ok: false, error: 'There is no such Group.' });
+  expect(await carol.socket.emitWithAck('leaveGroup', { name: 'Study' })).toEqual({ ok: false, error: 'You are not a Member of this Group.' });
+  expect(await bob.socket.emitWithAck('leaveGroup', { name: 'Nowhere' })).toEqual({ ok: false, error: 'There is no such Group.' });
 
   expect(await alice.socket.emitWithAck('loadMessages', '#study')).toMatchObject({ messages: [{ text: 'Bob joined the Group' }] });
 });
@@ -131,9 +131,9 @@ test('who leaves comes from the connection: a payload naming someone else remove
   const carol = await app.connectAsUser('Carol');
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
-  const forged = { name: 'Study', username: 'Bob' } as unknown as string;
+  const forged = { name: 'Study', username: 'Bob' };
 
-  expect(await carol.socket.emitWithAck('leaveGroup', forged)).toEqual({ ok: false, error: 'There is no such Group.' });
+  expect(await carol.socket.emitWithAck('leaveGroup', forged)).toEqual({ ok: false, error: 'You are not a Member of this Group.' });
 
   expect(await bob.socket.emitWithAck('loadMessages', '#study')).toMatchObject({ ok: true });
 });
@@ -144,7 +144,7 @@ test('a double click is harmless: one leave, one Announcement', async () => {
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
 
-  const answers = await Promise.all([bob.socket.emitWithAck('leaveGroup', 'Study'), bob.socket.emitWithAck('leaveGroup', 'Study')]);
+  const answers = await Promise.all([bob.socket.emitWithAck('leaveGroup', { name: 'Study' }), bob.socket.emitWithAck('leaveGroup', { name: 'Study' })]);
 
   expect(answers).toContainEqual({ ok: true });
   expect(answers).toContainEqual({ ok: false, error: 'You are not a Member of this Group.' });
@@ -153,27 +153,39 @@ test('a double click is harmless: one leave, one Announcement', async () => {
   });
 });
 
-test('the last Member is refused with a clear reason and stays a Member', async () => {
+test.each([
+  ['no confirmation', { name: 'Study' }],
+  ['anything but true as confirmation', { name: 'Study', confirmed: 'yes' as unknown as boolean }],
+])('the last Member is refused with %s, and stays a Member with nothing deleted', async (_, payload) => {
   const alice = await app.connectAsUser('Alice');
   await alice.socket.emitWithAck('createGroup', 'Study');
+  await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Still mine' });
 
-  expect(await alice.socket.emitWithAck('leaveGroup', 'Study')).toEqual({
+  expect(await alice.socket.emitWithAck('leaveGroup', payload)).toEqual({
     ok: false,
-    error: "You are the last Member of this Group, so you can't leave it.",
+    lastMember: true,
+    error: 'You are the last Member of this Group: leaving deletes it for good.',
   });
 
-  expect(await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Still mine' })).toEqual({ ok: true });
-  expect(await alice.socket.emitWithAck('loadMessages', '#study')).toMatchObject({ messages: [{ text: 'Still mine' }] });
+  expect(await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Still here' })).toEqual({ ok: true });
+  expect(await alice.socket.emitWithAck('loadMessages', '#study')).toMatchObject({
+    messages: [{ text: 'Still mine' }, { text: 'Still here' }],
+  });
 });
 
-test("two Members leaving at once can't empty the Group", async () => {
+test('two Members leaving at once: one leaves, and whoever ends up last is refused and asked', async () => {
   const alice = await app.connectAsUser('Alice');
   const bob = await app.connectAsUser('Bob');
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
 
-  await Promise.all([alice.socket.emitWithAck('leaveGroup', 'Study'), bob.socket.emitWithAck('leaveGroup', 'Study')]);
+  const answers = await Promise.all([
+    alice.socket.emitWithAck('leaveGroup', { name: 'Study' }),
+    bob.socket.emitWithAck('leaveGroup', { name: 'Study' }),
+  ]);
 
+  expect(answers).toContainEqual({ ok: true });
+  expect(answers).toContainEqual(expect.objectContaining({ ok: false, lastMember: true }));
   const carol = await app.connectAsUser('Carol');
   const [{ members }] = await carol.next('groupList');
   expect(members).toHaveLength(1);
@@ -187,7 +199,7 @@ test("the leaver's past Messages stay, and rejoining shows the full history and 
   await bob.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'My notes' });
   await bob.next('message'); // My notes
 
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
   await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Missed this' });
 
   const whileAway = [
@@ -213,7 +225,7 @@ test("leaving survives a server restart, and the leaver's new Clients aren't in 
   const bob = await app.connectAsUser('Bob');
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
 
   await app.restart();
   const alice2 = await app.connectAsUser('Alice');
@@ -246,7 +258,7 @@ test('a Client connecting just as its User leaves does not end up in the Group',
   const connecting = app.connectAsUser('Bob');
   await reading;
 
-  await bob.socket.emitWithAck('leaveGroup', 'Study');
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
   finishRead();
 
   const bob2 = await connecting;

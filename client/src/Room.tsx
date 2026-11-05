@@ -125,11 +125,17 @@ export function Room({ socket, roomId, title, subtitle, groupName, messages, bot
     }
   }
 
-  // No prompt: Join brings them straight back. On success the new Group list closes this Room on all their Clients (App).
+  // No prompt, since Join brings them straight back, unless the server says they're the last Member: only it can tell if two Members leave at once.
+  // On success the new Group list closes this Room on all their Clients (App).
   async function leave(name: string) {
+    const ask = (confirmed: boolean) => socket.timeout(10_000).emitWithAck('leaveGroup', { name, confirmed });
     setBusy(true);
     try {
-      const result = await socket.timeout(10_000).emitWithAck('leaveGroup', name);
+      let result = await ask(false);
+      if (!result.ok && result.lastMember) {
+        if (!confirm(`You are the last Member of ${name}. Leaving deletes the Group and all its Messages for good.`)) return;
+        result = await ask(true);
+      }
       setError(result.ok ? '' : result.error);
     } catch {
       setError('No answer from the server. Try again.');
