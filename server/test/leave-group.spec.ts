@@ -1,5 +1,8 @@
+import { getModelToken } from '@nestjs/mongoose';
 import type { ServerToClientEvents } from '@compnet/shared';
+import type { Model } from 'mongoose';
 import { AiClient } from '../src/bot/ai.client';
+import { Group } from '../src/groups/group.schema';
 import { GroupsService } from '../src/groups/groups.service';
 import type { TestClient } from './app';
 import { startApp } from './app';
@@ -267,4 +270,19 @@ test('a Client connecting just as its User leaves does not end up in the Group',
   await alice.socket.emitWithAck('sendMessage', { roomId: '#study', text: 'Only Alice now' });
   await settle();
   expect(leaver.received).toBe(false);
+});
+
+test('a Member an old Group stored in another spelling leaves it, and only they do', async () => {
+  const alice = await app.connectAsUser('Alice');
+  const bob = await app.connectAsUser('Bob');
+  const bobby = await app.connectAsUser('Bobby');
+  await alice.socket.emitWithAck('createGroup', 'Study');
+  await bob.socket.emitWithAck('joinGroup', 'Study');
+  await bobby.socket.emitWithAck('joinGroup', 'Study');
+  await app.app.get<Model<Group>>(getModelToken(Group.name)).updateOne({ key: 'study' }, { members: ['Alice', 'BOB', 'Bobby'] });
+  for (let lists = 0; lists < 4; lists++) await alice.next('groupList'); // the empty list on connect, the create and both joins
+
+  expect(await bob.socket.emitWithAck('leaveGroup', { name: 'Study' })).toEqual({ ok: true });
+
+  expect(await alice.next('groupList')).toEqual([{ name: 'Study', members: ['Alice', 'Bobby'] }]);
 });

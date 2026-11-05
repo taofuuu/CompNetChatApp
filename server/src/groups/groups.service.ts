@@ -88,9 +88,10 @@ export class GroupsService implements OnModuleInit {
       return { ok: true, deleted: true };
     }
     // One atomic update that only matches while someone else stays, so a double click or two Members leaving at once can't go wrong.
+    // Ignoring case, because an old Group may store the name in another spelling. A username is only letters, digits and underscores, so nothing in it needs escaping.
     const left = await this.groups.findOneAndUpdate(
       { key, memberKeys: userKey, 'memberKeys.1': { $exists: true } },
-      { $pull: { members: username, memberKeys: userKey } },
+      { $pull: { members: new RegExp(`^${username}$`, 'i'), memberKeys: userKey } },
     );
     if (left) return { ok: true };
     const group = await this.groups.findOne({ key }).lean();
