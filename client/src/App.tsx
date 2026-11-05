@@ -3,6 +3,7 @@ import type {
   ClientToServerEvents,
   GroupSummary,
   HandshakeAuth,
+  HistoryEntry,
   Message,
   RoomMessagesAck,
   ServerToClientEvents,
@@ -40,7 +41,7 @@ export function App() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [activeRoom, setActiveRoom] = useState<{ roomId: string; title: string } | null>(null);
   const activeRoomId = useRef('');
-  const [messagesByRoom, setMessagesByRoom] = useState<Record<string, Message[]>>({});
+  const [messagesByRoom, setMessagesByRoom] = useState<Record<string, HistoryEntry[]>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   /** The bot's reply so far, by Room: empty before its first word, undefined when it isn't answering. */
   const [botDrafts, setBotDrafts] = useState<Record<string, string | undefined>>({});
@@ -119,11 +120,19 @@ export function App() {
         }));
       }
     });
+    // Unlike a Message, it raises no unread count.
+    socket.on('announcement', (announcement) => {
+      const { roomId } = announcement;
+      setMessagesByRoom((prev) => ({
+        ...prev,
+        [roomId]: [...(prev[roomId] || []), announcement],
+      }));
+    });
     // shortcut: a history read just before the wipe that arrives after this shows the text until the next load; ignore stale loads if Users hit this.
     socket.on('messageUnsent', ({ roomId, id }) => {
       setMessagesByRoom((prev) => ({
         ...prev,
-        [roomId]: (prev[roomId] || []).map((message) => (message.id === id ? { ...message, text: '', unsent: true } : message)),
+        [roomId]: (prev[roomId] || []).map((entry) => ('sender' in entry && entry.id === id ? { ...entry, text: '', unsent: true } : entry)),
       }));
     });
     socket.on('connect_error', (err) => {

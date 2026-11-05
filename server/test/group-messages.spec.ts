@@ -106,6 +106,7 @@ test('a new Member sees every earlier Message after joining (R11)', async () => 
     messages: [
       { sender: 'Alice', text: 'First' },
       { sender: 'Alice', text: 'Second' },
+      { text: 'Bob joined the Group' },
     ],
   });
 });

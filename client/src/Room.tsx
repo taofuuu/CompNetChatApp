@@ -1,4 +1,4 @@
-import type { ClientToServerEvents, Message, ServerToClientEvents } from '@compnet/shared';
+import type { ClientToServerEvents, HistoryEntry, ServerToClientEvents } from '@compnet/shared';
 import { type FormEvent, useLayoutEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
@@ -15,7 +15,7 @@ interface Props {
   title: string;
   /** The line under the title: a Group's Member count, or whether the other User is Online. */
   subtitle: string;
-  messages: Message[];
+  messages: HistoryEntry[];
   /** The bot's reply so far, empty before its first word, or undefined when it isn't answering. */
   botDraft?: string;
   /** The other Users typing here right now. */
@@ -143,7 +143,16 @@ export function Room({ socket, roomId, title, subtitle, messages, botDraft, type
           <p className="empty-history">No Messages yet. Say hello, or start with @bot to ask bot something.</p>
         ) : (
           <ul className="message-list">
-            {messages.map((message, i) => {
+            {messages.map((entry, i) => {
+              if (!('sender' in entry)) {
+                return (
+                  <li key={`${entry.createdAt}-${i}`} className={`announcement ${i >= historyLength ? 'enter' : ''}`}>
+                    {entry.text}{' '}
+                    <time dateTime={entry.createdAt}>{formatTime(entry.createdAt)}</time>
+                  </li>
+                );
+              }
+              const message = entry;
               const { id } = message;
               const isBot = message.sender === BOT_NAME;
               const isSelf = message.sender.toLowerCase() === me;

@@ -1,18 +1,22 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Ack, GroupSummary } from '@compnet/shared';
+import type { Ack, Announcement as SharedAnnouncement, GroupSummary } from '@compnet/shared';
 import type { Model } from 'mongoose';
+import { Announcement } from './announcement.schema';
 import { Group } from './group.schema';
 
 export const MAX_GROUP_NAME_LENGTH = 30;
 
 /**
- * Groups and their Members, saved in MongoDB. Knows nothing about sockets: the gateway passes in who is asking.
+ * Groups, their Members and their Announcements, saved in MongoDB. Knows nothing about sockets: the gateway passes in who is asking.
  * There is deliberately no way to leave, delete or add someone else to a Group (R10).
  */
 @Injectable()
 export class GroupsService implements OnModuleInit {
-  constructor(@InjectModel(Group.name) private readonly groups: Model<Group>) {}
+  constructor(
+    @InjectModel(Group.name) private readonly groups: Model<Group>,
+    @InjectModel(Announcement.name) private readonly announcements: Model<Announcement>,
+  ) {}
 
   async onModuleInit() {
     // Wait for the unique index, so duplicate names are refused from the very first create.
@@ -65,4 +69,19 @@ export class GroupsService implements OnModuleInit {
     const groups = await this.groups.find().sort({ _id: 1 }).lean();
     return groups.map(({ name, members }) => ({ name, members }));
   }
+
+  /** Saves an Announcement into the Group's Room `roomId`. */
+  async announce(roomId: string, text: string): Promise<SharedAnnouncement> {
+    return toSharedAnnouncement(await this.announcements.create({ roomId, text }));
+  }
+
+  /** Every Announcement of `roomId`, oldest first. A Private Room has none. */
+  async announcementsOf(roomId: string): Promise<SharedAnnouncement[]> {
+    const docs = await this.announcements.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
+    return docs.map(toSharedAnnouncement);
+  }
+}
+
+function toSharedAnnouncement({ roomId, text, createdAt }: Announcement): SharedAnnouncement {
+  return { roomId, text, createdAt: createdAt.toISOString() };
 }

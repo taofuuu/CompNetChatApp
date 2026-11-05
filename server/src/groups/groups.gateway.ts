@@ -64,9 +64,16 @@ export class GroupsGateway implements OnGatewayConnection {
     const result = await this.groups.join(name, socket.data.username);
     if (result.ok) {
       this.addToGroupRoom(socket.data.username, name as string);
+      await this.announce(name as string, `${socket.data.username} joined the Group`);
       await this.sendGroupList();
     }
     return result;
+  }
+
+  /** Saves an Announcement, then shows it to every Client of every Member. Saved before the acknowledgement, so the history the Client loads next has it. */
+  private async announce(groupName: string, text: string) {
+    const roomId = groupRoomId(groupName);
+    this.server.to(roomId).emit('announcement', await this.groups.announce(roomId, text));
   }
 
   /**
