@@ -41,7 +41,7 @@ A Room with a unique name (ignoring case) that any User can join by themselves. 
 _Avoid_: Channel, chat group, group chat
 
 **Member**:
-A User who has created or joined a Group. Membership never ends.
+A User who has created or joined a Group and hasn't left it. Any Member but the last can leave, and can come back with Join and see the full history.
 _Avoid_: Participant, subscriber
 
 **Member Panel**:
@@ -69,5 +69,5 @@ What a User does to one of their own Messages, at any time, while they are in it
 _Avoid_: Delete, recall, retract
 
 **Announcement**:
-A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.
+A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group" or "bob left the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.
 _Avoid_: System message, notice, notification

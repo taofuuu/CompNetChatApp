@@ -94,7 +94,22 @@ export function App() {
       smoothly(() => setOnlineList(names));
     });
     // Listened for here, not in <Groups>, so the list sent right after connecting isn't missed.
-    socket.on('groupList', setGroups);
+    socket.on('groupList', (groups) => {
+      setGroups(groups);
+      // How every Client of a User who left hears it, even one that was disconnected at the time.
+      // shortcut: a Room this Client opens just as the User leaves on another stays open until the next list, with sending refused; check membership in showRoom if Users hit this.
+      const me = username.trim().toLowerCase();
+      for (const { name, members } of groups) {
+        const roomId = groupRoomId(name);
+        if (members.some((member) => member.toLowerCase() === me)) continue;
+        // The rest of a reply bot was writing will never arrive here.
+        setBotDrafts((prev) => ({ ...prev, [roomId]: undefined }));
+        if (activeRoomId.current === roomId) {
+          activeRoomId.current = '';
+          smoothly(() => setActiveRoom(null));
+        }
+      }
+    });
     socket.on('botChunk', ({ roomId, text }) => {
       setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] ?? '') + text }));
     });
@@ -295,6 +310,7 @@ export function App() {
             roomId={activeRoom.roomId}
             title={activeRoom.title}
             subtitle={subtitle}
+            groupName={activeGroup?.name}
             messages={messagesByRoom[activeRoom.roomId] || []}
             botDraft={botDrafts[activeRoom.roomId]}
             typers={typers[activeRoom.roomId] || []}

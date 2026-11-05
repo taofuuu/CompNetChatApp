@@ -425,6 +425,10 @@ input:focus-visible {
 }
 
 .room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 0.8rem 1.5rem 0.7rem;
   border-bottom: 1px solid var(--rule);
   view-transition-name: room-header;
@@ -437,6 +441,10 @@ input:focus-visible {
 .room-header p {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.room-header .button {
+  flex: none;
 }
 
 .message-window {

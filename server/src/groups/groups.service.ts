@@ -9,7 +9,7 @@ export const MAX_GROUP_NAME_LENGTH = 30;
 
 /**
  * Groups, their Members and their Announcements, saved in MongoDB. Knows nothing about sockets: the gateway passes in who is asking.
- * There is deliberately no way to leave, delete or add someone else to a Group (R10).
+ * There is deliberately no way to add someone else to a Group (R10).
  */
 @Injectable()
 export class GroupsService implements OnModuleInit {
@@ -57,6 +57,22 @@ export class GroupsService implements OnModuleInit {
     if (joined) return { ok: true };
     const group = await this.groups.exists({ key });
     return { ok: false, error: group ? 'You are already a Member of this Group.' : 'There is no such Group.' };
+  }
+
+  /** Removes `username`, and only them, from the Group named `name`. The last Member is refused, so a Group is never empty. */
+  async leave(name: unknown, username: string): Promise<Ack> {
+    const key = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    const userKey = username.toLowerCase();
+    // One atomic update that only matches while someone else stays, so a double click or two Members leaving at once can't go wrong.
+    const left = await this.groups.findOneAndUpdate(
+      { key, memberKeys: userKey, 'memberKeys.1': { $exists: true } },
+      { $pull: { members: username, memberKeys: userKey } },
+    );
+    if (left) return { ok: true };
+    const group = await this.groups.findOne({ key }).lean();
+    if (!group) return { ok: false, error: 'There is no such Group.' };
+    if (!group.memberKeys.includes(userKey)) return { ok: false, error: 'You are not a Member of this Group.' };
+    return { ok: false, error: "You are the last Member of this Group, so you can't leave it." };
   }
 
   /** Whether `username` is a Member of the Group whose lowercase name is `key` (R11). */

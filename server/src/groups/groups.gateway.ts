@@ -7,7 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { Ack, ClientToServerEvents, ServerToClientEvents } from '@compnet/shared';
+import type { Ack, ClientToServerEvents, GroupSummary, ServerToClientEvents } from '@compnet/shared';
 import type { DefaultEventsMap, Server, Socket } from 'socket.io';
 import type { SocketData } from '../socket-data';
 import { groupRoomId } from './group-room';
@@ -22,7 +22,7 @@ export class GroupsGateway implements OnGatewayConnection {
   @WebSocketServer() private server: ChatServer;
 
   private readonly logger = new Logger(GroupsGateway.name);
-  /** Counts Group list reads, so a slow read that finishes after a newer one isn't sent and doesn't overwrite it. */
+  /** Counts Group list broadcasts, so a slow read that finishes after a newer one isn't sent, and a connecting Client notices the Groups changed while it read them. */
   private latest = 0;
 
   constructor(private readonly groups: GroupsService) {}
@@ -30,8 +30,13 @@ export class GroupsGateway implements OnGatewayConnection {
   async handleConnection(socket: ChatSocket) {
     // Nest ignores this promise, so an error here would be an unhandled rejection that stops the whole server.
     try {
-      const started = this.latest;
-      const groups = await this.groups.list();
+      // Read again if the Groups changed meanwhile: with an old list, a Client of a User who just left would stay in the Group's Socket.IO room for good.
+      let started: number;
+      let groups: GroupSummary[];
+      do {
+        started = this.latest;
+        groups = await this.groups.list();
+      } while (started !== this.latest);
       // Joining a room after the disconnect has cleaned up would leave this socket in it for good.
       if (!socket.connected) return;
       // Into the Socket.IO room of every Group this User is a Member of, so their Group Messages reach it (R11).
@@ -40,8 +45,7 @@ export class GroupsGateway implements OnGatewayConnection {
       for (const group of groups) {
         if (group.members.some((member) => member.toLowerCase() === me)) void socket.join(groupRoomId(group.name));
       }
-      // A newer broadcast already reached this socket.
-      if (started === this.latest) socket.emit('groupList', groups);
+      socket.emit('groupList', groups);
     } catch (err) {
       this.logger.error(err);
     }
@@ -66,6 +70,20 @@ export class GroupsGateway implements OnGatewayConnection {
       this.addToGroupRoom(socket.data.username, name as string);
       await this.announce(name as string, `${socket.data.username} joined the Group`);
       await this.sendGroupList();
+    }
+    return result;
+  }
+
+  @SubscribeMessage('leaveGroup')
+  async leaveGroup(@ConnectedSocket() socket: ChatSocket, @MessageBody() name: unknown): Promise<Ack> {
+    // Who leaves always comes from the connection, never from the payload, so nobody can remove someone else.
+    const result = await this.groups.leave(name, socket.data.username);
+    if (result.ok) {
+      // Out of the Socket.IO room first, so the Announcement goes to the remaining Members only.
+      this.server.in(`user:${socket.data.username.toLowerCase()}`).socketsLeave(groupRoomId(name as string));
+      // Before the Announcement: sendGroupList counts the change at once, in the same tick as the line above, so a Client connecting now reads the list again.
+      await this.sendGroupList();
+      await this.announce(name as string, `${socket.data.username} left the Group`);
     }
     return result;
   }

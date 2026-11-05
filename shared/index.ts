@@ -18,7 +18,7 @@ export type Ack = { ok: true } | { ok: false; error: string };
 /** A Group as every Client sees it in the Group list. */
 export interface GroupSummary {
   name: string;
-  /** Every Member's name, the creator first. */
+  /** Every Member's name, in the order they joined. */
   members: string[];
 }
 
@@ -78,7 +78,7 @@ export interface Typing {
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
-  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create or join. */
+  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join or leave. */
   groupList: (groups: GroupSummary[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
@@ -97,6 +97,8 @@ export interface ClientToServerEvents {
   createGroup: (name: string, ack: (result: Ack) => void) => void;
   /** Adds the sender, and only the sender, to the Group named `name`. */
   joinGroup: (name: string, ack: (result: Ack) => void) => void;
+  /** Removes the sender, and only the sender, from the Group named `name`. */
+  leaveGroup: (name: string, ack: (result: Ack) => void) => void;
   /** Opens the Private Room between the sender and `targetUsername`, returning the Room id and history. */
   openPrivateRoom: (targetUsername: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Loads the message history for `roomId`. */
