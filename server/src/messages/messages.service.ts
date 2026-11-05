@@ -122,7 +122,7 @@ export class MessagesService {
   /** Loads full history for `roomId`, Messages and Announcements, in chronological order. */
   private async loadHistory(roomId: string): Promise<HistoryEntry[]> {
     const docs = await this.messages.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
-    const announcements = await this.groups.announcementsOf(roomId);
+    const announcements = groupKeyOf(roomId) !== undefined ? await this.groups.announcementsOf(roomId) : [];
     // The times are all from toISOString, so they sort as text. The sort is stable, which keeps Messages in their order.
     return [...docs.map(toSharedMessage), ...announcements].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
