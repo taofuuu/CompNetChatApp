@@ -107,6 +107,16 @@ test('the sender can unsend whatever case they logged in with', async () => {
   expect(await alice.socket.emitWithAck('unsendMessage', id!)).toEqual({ ok: true });
 });
 
+test('the Room is told the id it holds, even if the sender wrote it in capitals', async () => {
+  const alice = await app.connectAsUser('Alice');
+  const bob = await app.connectAsUser('Bob');
+  const { id } = await send(alice, PRIVATE_ROOM, 'Oops');
+
+  expect(await alice.socket.emitWithAck('unsendMessage', id!.toUpperCase())).toEqual({ ok: true });
+
+  expect(await bob.next('messageUnsent')).toEqual({ roomId: PRIVATE_ROOM, id });
+});
+
 test('nobody but the sender can unsend: a refusal tells no one and changes nothing', async () => {
   const alice = await app.connectAsUser('Alice');
   const bob = await app.connectAsUser('Bob');

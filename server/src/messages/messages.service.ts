@@ -80,13 +80,13 @@ export class MessagesService {
   }
 
   /**
-   * Wipes the text of Message `id`, leaving its place and time, and returns the Room it was in.
+   * Wipes the text of Message `id`, leaving its place and time, and returns the Room it was in and its id as Clients hold it.
    * Refuses anyone but the sender, and a sender no longer in the Room. That also refuses bot's Messages: nobody can be bot.
    */
   async unsend(
     requester: string,
     id: unknown,
-  ): Promise<{ ok: true; roomId: string } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; roomId: string; id: string } | { ok: false; error: string }> {
     // typeof first: a payload shaped like an ObjectId would pass the other check, and only strings come from Clients.
     const message = typeof id === 'string' && isObjectIdOrHexString(id) ? await this.messages.findById(id).lean() : null;
     if (!message) return { ok: false, error: 'There is no such Message.' };
@@ -102,7 +102,8 @@ export class MessagesService {
       { text: '', unsent: true },
     );
     if (modifiedCount === 0) return { ok: false, error: 'This Message is already unsent.' };
-    return { ok: true, roomId: message.roomId };
+    // Not the id it was given: that may be in capitals, and Clients match the id exactly.
+    return { ok: true, roomId: message.roomId, id: message._id.toString() };
   }
 
   /** The latest `limit` Messages of `roomId` that are not unsent, oldest first. */
@@ -129,7 +130,7 @@ export class MessagesService {
   /** Loads full history for `roomId`, Messages and Announcements, in chronological order. */
   private async loadHistory(roomId: string): Promise<HistoryEntry[]> {
     const docs = await this.messages.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
-    const announcements = await this.groups.announcementsOf(roomId);
+    const announcements = groupKeyOf(roomId) !== undefined ? await this.groups.announcementsOf(roomId) : [];
     // The times are all from toISOString, so they sort as text. The sort is stable, which keeps Messages in their order.
     return [...docs.map(toSharedMessage), ...announcements].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }

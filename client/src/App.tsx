@@ -54,6 +54,7 @@ export function App() {
   function showTyping(roomId: string, username: string, isTyping: boolean) {
     const timer = `${roomId}/${username}`;
     clearTimeout(typingTimers.current.get(timer));
+    typingTimers.current.delete(timer);
     if (isTyping) typingTimers.current.set(timer, setTimeout(() => showTyping(roomId, username, false), TYPING_SHOWN_MS));
     setTypers((prev) => {
       const names = prev[roomId] || [];
@@ -167,7 +168,9 @@ export function App() {
   }
 
   function openPrivateRoom(targetUser: string) {
-    if (socket) showRoom(targetUser, socket.timeout(10_000).emitWithAck('openPrivateRoom', targetUser));
+    // An old Group may store a Member's name in another case: the Room's title is the name in the Online List.
+    const name = onlineList?.find((user) => user.toLowerCase() === targetUser.toLowerCase()) ?? targetUser;
+    if (socket) showRoom(name, socket.timeout(10_000).emitWithAck('openPrivateRoom', name));
   }
 
   function openGroupRoom(name: string) {

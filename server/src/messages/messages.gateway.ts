@@ -80,7 +80,7 @@ export class MessagesGateway implements OnGatewayConnection {
   async unsendMessage(@ConnectedSocket() socket: ChatSocket, @MessageBody() id: unknown): Promise<Ack> {
     const result = await this.messagesService.unsend(socket.data.username, id);
     if (!result.ok) return result;
-    this.toRoom(result.roomId).emit('messageUnsent', { roomId: result.roomId, id: id as string });
+    this.toRoom(result.roomId).emit('messageUnsent', { roomId: result.roomId, id: result.id });
     return { ok: true };
   }
 
