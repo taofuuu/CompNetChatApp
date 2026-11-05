@@ -13,6 +13,7 @@ import { io, type Socket } from 'socket.io-client';
 import { Banner } from './Banner';
 import { groupRoomId } from './group-room';
 import { Groups } from './Groups';
+import { MemberPanel } from './MemberPanel';
 import { privateRoomId } from './private-room';
 import { BOT_NAME, Room } from './Room';
 
@@ -204,10 +205,12 @@ export function App() {
   }
 
   const me = username.trim().toLowerCase();
+  // The name as it was registered, which the login form's text may not match in case.
+  const myName = onlineList.find((name) => name.toLowerCase() === me) ?? me;
   const activeGroup = groups.find((group) => groupRoomId(group.name) === activeRoom?.roomId);
   const memberCount = activeGroup?.members.length;
   const subtitle = activeGroup
-    ? `${memberCount} ${memberCount === 1 ? 'Member' : 'Members'}: ${activeGroup.members.join(', ')}`
+    ? `${memberCount} ${memberCount === 1 ? 'Member' : 'Members'}`
     : activeRoom && onlineList.includes(activeRoom.title)
       ? 'Online'
       : "Offline. They'll see your Messages when they log in.";
@@ -288,6 +291,15 @@ export function App() {
           </div>
         )}
       </section>
+
+      {activeRoom && (
+        <MemberPanel
+          names={activeGroup ? activeGroup.members : [myName, activeRoom.title]}
+          onlineList={onlineList}
+          me={me}
+          onOpen={openPrivateRoom}
+        />
+      )}
     </main>
   );
 }

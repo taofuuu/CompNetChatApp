@@ -44,6 +44,10 @@ _Avoid_: Channel, chat group, group chat
 A User who has created or joined a Group. Membership never ends.
 _Avoid_: Participant, subscriber
 
+**Member Panel**:
+The column beside an open Room showing who is in it: a Group's Members, or both Users of a Private Room, under Online and Offline headings with counts. It never lists bot.
+_Avoid_: Member list, user list, right sidebar
+
 **bot**:
 The AI that answers a Message starting with `@bot` in any Room: a Private Room or a Group. It is not a User: nobody can register or log in as bot, and it never appears in the Online List. Its replies are saved as Messages.
 _Avoid_: Chatbot (reserved for a possible AI feature, not the product), assistant
