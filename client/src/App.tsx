@@ -53,6 +53,7 @@ export function App() {
   function showTyping(roomId: string, username: string, isTyping: boolean) {
     const timer = `${roomId}/${username}`;
     clearTimeout(typingTimers.current.get(timer));
+    typingTimers.current.delete(timer);
     if (isTyping) typingTimers.current.set(timer, setTimeout(() => showTyping(roomId, username, false), TYPING_SHOWN_MS));
     setTypers((prev) => {
       const names = prev[roomId] || [];
