@@ -35,7 +35,8 @@ function BotText({ text }: { text: string }) {
   return (
     <>
       <div className="message-text">{text.replace(CITATION, '').trim()}</div>
-      {text.match(CITATION)?.map((citation) => (
+      {/* A Set: the model may cite one Slide twice, and one footnote is enough. */}
+      {[...new Set(text.match(CITATION))].map((citation) => (
         <cite key={citation} className="message-citation">
           {citation}
         </cite>
