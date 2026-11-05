@@ -63,3 +63,7 @@ _Avoid_: Page, document, chunk
 **Message**:
 A piece of text a User, or bot, sends into one Room, visible only to that Room's Users (both sides of a Private Room, or a Group's Members, including ones who joined later).
 _Avoid_: Chat, post
+
+**Unsend**:
+What a User does to one of their own Messages, at any time, while they are in its Room. Its text is wiped for good, and everyone in the Room sees "alice unsent a Message" in its place, with the same time. bot's Messages can't be unsent, and bot's reply to an unsent `@bot` question stays.
+_Avoid_: Delete, recall, retract

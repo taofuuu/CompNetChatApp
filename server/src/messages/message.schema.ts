@@ -11,13 +11,17 @@ export class Message {
   @Prop({ required: true })
   sender: string;
 
-  /** The message text, trimmed and at most 1000 characters. */
+  /** The message text, trimmed and at most 1000 characters. Unsending wipes it to empty, by an update, which skips `required`. */
   @Prop({ required: true })
   text: string;
 
   /** Stamped by the server's clock when the Message is received. */
   @Prop({ required: true, default: () => new Date() })
   createdAt: Date;
+
+  /** Set once the sender has unsent it. */
+  @Prop()
+  unsent?: boolean;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

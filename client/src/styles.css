@@ -495,6 +495,41 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.message-unsend {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  color: inherit;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  /* Not display: none, so the keyboard can still reach it. */
+  opacity: 0;
+  transition: opacity var(--quick);
+}
+
+.message-item:hover .message-unsend,
+.message-unsend:focus-visible {
+  opacity: 1;
+}
+
+/* A touch screen has no hover. */
+@media (hover: none) {
+  .message-unsend {
+    opacity: 1;
+  }
+}
+
+.message-unsent {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.message-self .message-unsent {
+  color: var(--self-muted);
+}
+
 .message-citation {
   display: block;
   margin-top: 0.3rem;

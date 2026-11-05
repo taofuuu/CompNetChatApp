@@ -119,6 +119,13 @@ export function App() {
         }));
       }
     });
+    // shortcut: a history read just before the wipe that arrives after this shows the text until the next load; ignore stale loads if Users hit this.
+    socket.on('messageUnsent', ({ roomId, id }) => {
+      setMessagesByRoom((prev) => ({
+        ...prev,
+        [roomId]: (prev[roomId] || []).map((message) => (message.id === id ? { ...message, text: '', unsent: true } : message)),
+      }));
+    });
     socket.on('connect_error', (err) => {
       // A network problem: Socket.IO keeps retrying by itself.
       if (socket.active) return setError("Can't reach the server. Still trying…");
