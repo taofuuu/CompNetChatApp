@@ -37,7 +37,7 @@ The single Room shared by exactly two Users, the same no matter which of them op
 _Avoid_: DM thread, direct chat
 
 **Group**:
-A Room with a unique name (ignoring case) that any User can join by themselves, unless a Kick still blocks them. It starts with its creator as the only Member. When its last Member leaves, after a warning, the Group is deleted with its Messages and Announcements, and its name is free again.
+A Room with a unique name (ignoring case) that any User can join by themselves, unless a Kick or Vote Kick still blocks them. It starts with its creator as the only Member. When its last Member leaves, after a warning, the Group is deleted with its Messages and Announcements, and its name is free again.
 _Avoid_: Channel, chat group, group chat
 
 **Member**:
@@ -47,6 +47,10 @@ _Avoid_: Participant, subscriber
 **Kick**:
 What a Member does, after a prompt, to an offline Member who joined after them. It removes them the way leaving does and adds "alice kicked bob" to the Room. The block that follows keeps them from joining that Group for 10 minutes, with a countdown only they see. Their past Messages stay. It is limited this way so a stranger can't join a Group whose Members are all offline, kick them all and delete its history by leaving.
 _Avoid_: Ban
+
+**Vote Kick**:
+How Members remove an Online Member together: any Member can start one on another while at least 3 Members are Online, and the banner shows it in the Group's Room for 30 seconds, with a "Vote" tag on the Group for every Member elsewhere. The voters are the Online Members except the target, fixed at the start. The starter's yes counts by itself, each User has one vote, and silence, going offline or leaving without voting counts as no. A strict majority removes the target with the same 10-minute block as a Kick, and the vote ends as soon as the result can't change. A Group runs one at a time, there is no cooldown, the target leaving cancels it, and a server restart drops it.
+_Avoid_: Poll, ballot
 
 **Member Panel**:
 The column beside an open Room showing who is in it: a Group's Members, or both Users of a Private Room, under Online and Offline headings with counts. It never lists bot.

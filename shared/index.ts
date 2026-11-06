@@ -70,7 +70,7 @@ export type LeaveGroupAck =
   /** `lastMember` means they stay a Member until they ask again with `confirmed`. */
   | { ok: false; error: string; lastMember?: boolean };
 
-/** The payload for kicking a Member out of a Group. */
+/** The payload for kicking a Member out of a Group, or starting a Vote Kick on them. */
 export interface KickMemberPayload {
   name: string;
   target: string;
@@ -79,6 +79,25 @@ export interface KickMemberPayload {
 /** A Group the User can't join yet, because they were kicked from it. */
 export interface KickBlock {
   name: string;
+  /** The time left by the server's clock. A Client counts down from this, so its own clock doesn't matter. */
+  msLeft: number;
+}
+
+/** The payload for voting in a Group's running Vote Kick. */
+export interface CastVotePayload {
+  name: string;
+  yes: boolean;
+}
+
+/** A Vote Kick running in a Group, as its Members see it. */
+export interface VoteKick {
+  roomId: string;
+  starter: string;
+  target: string;
+  /** The yes votes so far, the starter's included. */
+  yes: number;
+  /** The lowercase names of the voters who can still vote. A Client shows the buttons only to these. */
+  waitingFor: string[];
   /** The time left by the server's clock. A Client counts down from this, so its own clock doesn't matter. */
   msLeft: number;
 }
@@ -104,10 +123,16 @@ export interface Typing {
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
-  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join, leave, Kick or deletion. */
+  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join, leave, Kick, passed Vote Kick or deletion. */
   groupList: (groups: GroupSummary[]) => void;
   /** Every block running on this User, replacing any before: sent to a Client when it connects and to all their Clients when they are kicked. Never sent to anyone else. */
   kickBlocks: (blocks: KickBlock[]) => void;
+  /** A Vote Kick running in a Group the Client is in: sent when it starts, on every vote, when a Client connects and when its User joins the Group. Never sent to anyone else. */
+  voteKick: (vote: VoteKick) => void;
+  /** The Vote Kick in the Group with this Room id is over, however it ended. */
+  voteKickEnded: (roomId: string) => void;
+  /** A Vote Kick removed this User from the Group named here. Sent to all their Clients. */
+  votedOut: (groupName: string) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
   /** A new Announcement in a Group the Client is in. */
@@ -129,6 +154,10 @@ export interface ClientToServerEvents {
   leaveGroup: (payload: LeaveGroupPayload, ack: (result: LeaveGroupAck) => void) => void;
   /** Kicks an offline Member who joined after the sender, and blocks them from joining for 10 minutes. */
   kickMember: (payload: KickMemberPayload, ack: (result: Ack) => void) => void;
+  /** Starts a Vote Kick on the Online Member `target`, with the sender's yes already counted. */
+  startVoteKick: (payload: KickMemberPayload, ack: (result: Ack) => void) => void;
+  /** Casts the sender's one vote in the Group's running Vote Kick. It can't be changed. */
+  castVote: (payload: CastVotePayload, ack: (result: Ack) => void) => void;
   /** Opens the Private Room between the sender and `targetUsername`, returning the Room id and history. */
   openPrivateRoom: (targetUsername: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Loads the message history for `roomId`. */

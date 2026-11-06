@@ -17,6 +17,7 @@ import { Groups } from './Groups';
 import { MemberPanel } from './MemberPanel';
 import { privateRoomId } from './private-room';
 import { BOT_NAME, Room } from './Room';
+import type { LiveVoteKick } from './VoteKickBanner';
 
 type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -41,6 +42,8 @@ export function App() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   /** When each Group's block on this User ends, by Group name, on the `performance.now()` clock. */
   const [kickBlocks, setKickBlocks] = useState<Record<string, number>>({});
+  /** The Vote Kick running in each of this User's Groups, by Room id. Kept here, not in <Room>, so the sidebar shows it and a Room opened mid-vote has it. */
+  const [voteKicks, setVoteKicks] = useState<Record<string, LiveVoteKick>>({});
   const [activeRoom, setActiveRoom] = useState<{ roomId: string; title: string } | null>(null);
   const activeRoomId = useRef('');
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, HistoryEntry[]>>({});
@@ -88,7 +91,11 @@ export function App() {
         });
       }
     });
-    socket.on('disconnect', () => setError('Connection lost. Reconnecting…'));
+    socket.on('disconnect', () => {
+      setError('Connection lost. Reconnecting…');
+      // A vote that ends now is never heard of. The server sends the running ones on reconnecting.
+      setVoteKicks({});
+    });
     // The first list is what lets the chat screen in.
     let loggedIn = false;
     socket.on('onlineList', (names) => {
@@ -115,6 +122,7 @@ export function App() {
       setUnreadCounts(forgetRoomsOut);
       setBotDrafts(forgetRoomsOut);
       setTypers(forgetRoomsOut);
+      setVoteKicks(forgetRoomsOut);
       if (isOut(activeRoomId.current)) {
         activeRoomId.current = '';
         smoothly(() => setActiveRoom(null));
@@ -125,6 +133,15 @@ export function App() {
       const receivedAt = performance.now();
       setKickBlocks(Object.fromEntries(blocks.map(({ name, msLeft }) => [name, receivedAt + msLeft])));
     });
+    socket.on('voteKick', (vote) => {
+      const endsAt = performance.now() + vote.msLeft;
+      setVoteKicks((prev) => ({ ...prev, [vote.roomId]: { ...vote, endsAt } }));
+    });
+    socket.on('voteKickEnded', (roomId) => {
+      setVoteKicks((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => id !== roomId)));
+    });
+    // The Group list closes the Room; this says why.
+    socket.on('votedOut', (groupName) => setError(`You were kicked out of ${groupName}`));
     socket.on('botChunk', ({ roomId, text }) => {
       setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] ?? '') + text }));
     });
@@ -187,15 +204,19 @@ export function App() {
     if (socket) showRoom(name, socket.timeout(10_000).emitWithAck('loadMessages', groupRoomId(name)));
   }
 
-  // A prompt, because the Kick is instant and nobody else has to agree.
-  async function kick(groupName: string, member: string) {
-    if (!socket || !confirm(`Kick ${member} from ${groupName}? They can't join again for 10 minutes.`)) return;
+  async function askToRemove(event: 'kickMember' | 'startVoteKick', groupName: string, member: string) {
+    if (!socket) return;
     try {
-      const result = await socket.timeout(10_000).emitWithAck('kickMember', { name: groupName, target: member });
+      const result = await socket.timeout(10_000).emitWithAck(event, { name: groupName, target: member });
       setError(result.ok ? '' : result.error);
     } catch {
       setError('No answer from the server. Try again.');
     }
+  }
+
+  // A prompt, because the Kick is instant and nobody else has to agree.
+  function kick(groupName: string, member: string) {
+    if (confirm(`Kick ${member} from ${groupName}? They can't join again for 10 minutes.`)) void askToRemove('kickMember', groupName, member);
   }
 
   /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
@@ -322,6 +343,7 @@ export function App() {
           activeRoomId={activeRoom?.roomId}
           unreadCounts={unreadCounts}
           kickBlocks={kickBlocks}
+          voteKicks={voteKicks}
           onOpen={openGroupRoom}
         />
         {/* A login lives only in this page: reloading closes the socket and forgets the password and every Message. */}
@@ -340,6 +362,7 @@ export function App() {
             title={activeRoom.title}
             subtitle={subtitle}
             groupName={activeGroup?.name}
+            voteKick={voteKicks[activeRoom.roomId]}
             messages={messagesByRoom[activeRoom.roomId] || []}
             botDraft={botDrafts[activeRoom.roomId]}
             typers={typers[activeRoom.roomId] || []}
@@ -360,6 +383,7 @@ export function App() {
           me={me}
           onOpen={openPrivateRoom}
           onKick={activeGroup && ((name) => kick(activeGroup.name, name))}
+          onVoteKick={activeGroup && ((name) => askToRemove('startVoteKick', activeGroup.name, name))}
         />
       )}
     </main>

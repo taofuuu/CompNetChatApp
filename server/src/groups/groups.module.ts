@@ -6,6 +6,7 @@ import { Announcement, AnnouncementSchema } from './announcement.schema';
 import { Group, GroupSchema } from './group.schema';
 import { GroupsGateway } from './groups.gateway';
 import { GroupsService } from './groups.service';
+import { VoteKicksService } from './vote-kicks.service';
 
 @Module({
   imports: [
@@ -15,10 +16,10 @@ import { GroupsService } from './groups.service';
       // Deleting a Group deletes its Messages.
       { name: Message.name, schema: MessageSchema },
     ]),
-    // Only an offline Member can be kicked.
+    // Only an offline Member can be kicked, and only Online Members vote in a Vote Kick.
     OnlineListModule,
   ],
-  providers: [GroupsGateway, GroupsService],
+  providers: [GroupsGateway, GroupsService, VoteKicksService],
   // Group Messages (#11) need to check membership, and a Room's history needs its Announcements.
   exports: [GroupsService],
 })

@@ -2,6 +2,7 @@ import type { ClientToServerEvents, HistoryEntry, ServerToClientEvents } from '@
 import { type FormEvent, useLayoutEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
+import { type LiveVoteKick, VoteKickBanner } from './VoteKickBanner';
 
 export const BOT_NAME = 'bot';
 /** A citation as the server writes it, e.g. 📖 Lesson 3 (Transport Layer), slide 42 */
@@ -17,6 +18,8 @@ interface Props {
   subtitle: string;
   /** The Group's name, if this Room is a Group. */
   groupName?: string;
+  /** The Vote Kick running in this Group, if there is one. */
+  voteKick?: LiveVoteKick;
   messages: HistoryEntry[];
   /** The bot's reply so far, empty before its first word, or undefined when it isn't answering. */
   botDraft?: string;
@@ -62,7 +65,7 @@ function Dots({ label }: { label: string }) {
  * A Room panel: displays message history in a scrollable message window
  * and provides a text box for sending Messages.
  */
-export function Room({ socket, roomId, title, subtitle, groupName, messages, botDraft, typers, me }: Props) {
+export function Room({ socket, roomId, title, subtitle, groupName, voteKick, messages, botDraft, typers, me }: Props) {
   const [inputText, setInputText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -126,6 +129,19 @@ export function Room({ socket, roomId, title, subtitle, groupName, messages, bot
     }
   }
 
+  // Busy until the server answers, so a double click can't be refused as a second vote. Its update then takes the buttons away.
+  async function vote(name: string, yes: boolean) {
+    setBusy(true);
+    try {
+      const result = await socket.timeout(10_000).emitWithAck('castVote', { name, yes });
+      setError(result.ok ? '' : result.error);
+    } catch {
+      setError('No answer from the server. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // No prompt, since Join brings them straight back, unless the server says they're the last Member: only it can tell if two Members leave at once.
   // On success the new Group list closes this Room on all their Clients (App).
   async function leave(name: string) {
@@ -158,6 +174,8 @@ export function Room({ socket, roomId, title, subtitle, groupName, messages, bot
           </button>
         )}
       </header>
+
+      {groupName && voteKick && <VoteKickBanner vote={voteKick} me={me} busy={busy} onVote={(yes) => vote(groupName, yes)} />}
 
       <div
         className="message-window"
