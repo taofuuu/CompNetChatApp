@@ -49,7 +49,7 @@ What a Member does, after a prompt, to an offline Member who joined after them. 
 _Avoid_: Ban
 
 **Vote Kick**:
-How Members remove an Online Member together: any Member can start one on another while at least 3 Members are Online, and the banner shows it in the Group's Room for 30 seconds, with a "Vote" tag on the Group for every Member elsewhere. The voters are the Online Members except the target, fixed at the start. The starter's yes counts by itself, each User has one vote, and silence, going offline or leaving without voting counts as no. A strict majority removes the target with the same 10-minute block as a Kick, and the vote ends as soon as the result can't change. A Group runs one at a time, there is no cooldown, the target leaving cancels it, and a server restart drops it.
+How Members remove an Online Member together: any Member can start one on another while at least 3 Members are Online, and a panel shows it for 30 seconds over whichever Room is open, with a "Vote" tag on the Group. F1 votes yes and F2 votes no. The voters are the Online Members except the target, fixed at the start. The starter's yes counts by itself, each User has one vote, and silence, going offline or leaving without voting counts as no. A strict majority removes the target with the same 10-minute block as a Kick, and the vote ends as soon as the result can't change. A Group runs one at a time, there is no cooldown, the target leaving cancels it, and a server restart drops it.
 _Avoid_: Poll, ballot
 
 **Member Panel**:
@@ -75,6 +75,10 @@ _Avoid_: Chat, post
 **Unsend**:
 What a User does to one of their own Messages, at any time, while they are in its Room. Its text is wiped for good, and everyone in the Room sees "alice unsent a Message" in its place, with the same time. bot's Messages can't be unsent, and bot's reply to an unsent `@bot` question stays.
 _Avoid_: Delete, recall, retract
+
+**Command**:
+A line in a Room's text box that starts with `/` and a word, such as `/kick bob`, telling the Chat App to do what a button would. It is not a Message: it is never saved and nobody else sees it, while a line like `/etc/hosts` is an ordinary Message. An `@bot` question is a Message too, not a Command.
+_Avoid_: Slash command, console
 
 **Announcement**:
 A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group" or "bob left the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.

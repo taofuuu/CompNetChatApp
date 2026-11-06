@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "oxlint --react-plugin"
+    "lint": "oxlint --react-plugin",
+    "test": "node --experimental-strip-types --test test/commands.test.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
