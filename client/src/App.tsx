@@ -95,7 +95,26 @@ export function App() {
       smoothly(() => setOnlineList(names));
     });
     // Listened for here, not in <Groups>, so the list sent right after connecting isn't missed.
-    socket.on('groupList', setGroups);
+    socket.on('groupList', (groups) => {
+      setGroups(groups);
+      // How every Client of a User who left, or whose Group was deleted, hears it, even one that was disconnected at the time.
+      // shortcut: a Room this Client opens just as the User leaves on another stays open until the next list, with sending refused; check membership in showRoom if Users hit this.
+      // shortcut: a Client that misses a deletion because the same User recreates the Group while it's disconnected keeps the old unread count until it opens the Room; give Groups an id if Users hit this.
+      const me = username.trim().toLowerCase();
+      const mine = groups.filter(({ members }) => members.some((member) => member.toLowerCase() === me));
+      const myRooms = new Set(mine.map(({ name }) => groupRoomId(name)));
+      const isOut = (roomId: string) => roomId.startsWith('#') && !myRooms.has(roomId);
+      // Nothing stays of a Room they're out of: the rest of a reply bot was writing will never arrive, and a new Group with the name starts clean.
+      const forgetRoomsOut = <T,>(byRoom: Record<string, T>) => Object.fromEntries(Object.entries(byRoom).filter(([roomId]) => !isOut(roomId)));
+      setMessagesByRoom(forgetRoomsOut);
+      setUnreadCounts(forgetRoomsOut);
+      setBotDrafts(forgetRoomsOut);
+      setTypers(forgetRoomsOut);
+      if (isOut(activeRoomId.current)) {
+        activeRoomId.current = '';
+        smoothly(() => setActiveRoom(null));
+      }
+    });
     socket.on('botChunk', ({ roomId, text }) => {
       setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] ?? '') + text }));
     });
@@ -298,6 +317,7 @@ export function App() {
             roomId={activeRoom.roomId}
             title={activeRoom.title}
             subtitle={subtitle}
+            groupName={activeGroup?.name}
             messages={messagesByRoom[activeRoom.roomId] || []}
             botDraft={botDrafts[activeRoom.roomId]}
             typers={typers[activeRoom.roomId] || []}

@@ -70,7 +70,7 @@ export class MessagesGateway implements OnGatewayConnection {
     if (result.ok) {
       this.toRoom(result.message.roomId).emit('message', result.message);
       // Not awaited: the sender's acknowledgement shouldn't wait for the AI.
-      if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId, socket.data.username.toLowerCase());
+      if (mentionsBot(result.message.text)) void this.answerAsBot(result.message.roomId, socket.data.username.toLowerCase(), result.groupDeleted);
       return { ok: true };
     }
     return { ok: false, error: result.error };
@@ -92,17 +92,22 @@ export class MessagesGateway implements OnGatewayConnection {
     this.toRoom(roomId).except(`user:${username.toLowerCase()}`).emit('typing', { roomId, username });
   }
 
-  private async answerAsBot(roomId: string, asker: string) {
+  /** `groupDeleted` stops the reply: it can outlast its Group, and a new Group with the name mustn't get the rest of it. */
+  private async answerAsBot(roomId: string, asker: string, groupDeleted: () => boolean) {
     if (this.botAnswering.has(roomId) || this.botAnswering.has(asker)) return;
     this.botAnswering.add(roomId).add(asker);
     // Nest doesn't see this promise, so an error here would be an unhandled rejection that stops the whole server.
     try {
       // shortcut: read once, so a Message unsent while bot is answering still reaches the model this time; re-read before the main AI call if that matters.
       const history = await this.messagesService.recent(roomId, BOT_CONTEXT_MESSAGES);
-      const reply = await this.bot.reply(history, (text) => this.toRoom(roomId).emit('botChunk', { roomId, text }));
-      this.toRoom(roomId).emit('message', await this.messagesService.saveBotReply(roomId, reply));
+      const reply = await this.bot.reply(history, (text) => {
+        if (!groupDeleted()) this.toRoom(roomId).emit('botChunk', { roomId, text });
+      });
+      const message = await this.messagesService.saveBotReply(roomId, reply, groupDeleted);
+      if (message) this.toRoom(roomId).emit('message', message);
     } catch (err) {
       this.logger.error(err);
+      if (groupDeleted()) return;
       // Not saved, since the database may be what failed. It still ends the streaming bubble.
       const createdAt = new Date().toISOString();
       this.toRoom(roomId).emit('message', { roomId, sender: BOT_NAME, text: BOT_UNAVAILABLE, createdAt });

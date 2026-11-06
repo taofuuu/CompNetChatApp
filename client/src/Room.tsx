@@ -15,6 +15,8 @@ interface Props {
   title: string;
   /** The line under the title: a Group's Member count, or whether the other User is Online. */
   subtitle: string;
+  /** The Group's name, if this Room is a Group. */
+  groupName?: string;
   messages: HistoryEntry[];
   /** The bot's reply so far, empty before its first word, or undefined when it isn't answering. */
   botDraft?: string;
@@ -60,7 +62,7 @@ function Dots({ label }: { label: string }) {
  * A Room panel: displays message history in a scrollable message window
  * and provides a text box for sending Messages.
  */
-export function Room({ socket, roomId, title, subtitle, messages, botDraft, typers, me }: Props) {
+export function Room({ socket, roomId, title, subtitle, groupName, messages, botDraft, typers, me }: Props) {
   const [inputText, setInputText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -124,11 +126,37 @@ export function Room({ socket, roomId, title, subtitle, messages, botDraft, type
     }
   }
 
+  // No prompt, since Join brings them straight back, unless the server says they're the last Member: only it can tell if two Members leave at once.
+  // On success the new Group list closes this Room on all their Clients (App).
+  async function leave(name: string) {
+    const ask = (confirmed: boolean) => socket.timeout(10_000).emitWithAck('leaveGroup', { name, confirmed });
+    setBusy(true);
+    try {
+      let result = await ask(false);
+      if (!result.ok && result.lastMember) {
+        if (!confirm(`You are the last Member of ${name}. Leaving deletes the Group and all its Messages for good.`)) return;
+        result = await ask(true);
+      }
+      setError(result.ok ? '' : result.error);
+    } catch {
+      setError('No answer from the server. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="room-panel" aria-label={`Room: ${title}`}>
       <header className="room-header">
-        <h2>{title}</h2>
-        <p>{subtitle}</p>
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+        {groupName && (
+          <button type="button" className="button button-quiet" disabled={busy} onClick={() => leave(groupName)}>
+            Leave Group
+          </button>
+        )}
       </header>
 
       <div

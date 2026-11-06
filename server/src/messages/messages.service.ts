@@ -55,10 +55,12 @@ export class MessagesService {
   async send(
     sender: string,
     payload: unknown,
-  ): Promise<{ ok: true; message: SharedMessage } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; message: SharedMessage; groupDeleted: () => boolean } | { ok: false; error: string }> {
     const { roomId, text } = (payload ?? {}) as { roomId?: unknown; text?: unknown };
     const cleanRoomId = typeof roomId === 'string' ? roomId.trim() : '';
     if (!cleanRoomId) return { ok: false, error: 'Invalid room id.' };
+    // From before the check, so a Group deleted any time after it is noticed.
+    const groupDeleted = this.groups.watchForDeletion(cleanRoomId);
     if (!(await this.isInRoom(sender, cleanRoomId))) {
       return { ok: false, error: 'You are not in this Room.' };
     }
@@ -68,12 +70,13 @@ export class MessagesService {
       return { ok: false, error: `A Message can be at most ${MAX_MESSAGE_LENGTH} characters.` };
     }
 
-    return { ok: true, message: await this.save(cleanRoomId, sender, trimmed) };
+    const message = await this.save(cleanRoomId, sender, trimmed, groupDeleted);
+    return message ? { ok: true, message, groupDeleted } : { ok: false, error: 'You are not in this Room.' };
   }
 
   /** Saves the bot's reply. It skips `send`'s checks: the bot is in no Room, and its replies may be longer than a User's Message. */
-  saveBotReply(roomId: string, text: string): Promise<SharedMessage> {
-    return this.save(roomId, BOT_NAME, text);
+  saveBotReply(roomId: string, text: string, groupDeleted: () => boolean): Promise<SharedMessage | null> {
+    return this.save(roomId, BOT_NAME, text, groupDeleted);
   }
 
   /**
@@ -109,8 +112,12 @@ export class MessagesService {
     return docs.reverse().map(toSharedMessage);
   }
 
-  private async save(roomId: string, sender: string, text: string): Promise<SharedMessage> {
-    return toSharedMessage(await this.messages.create({ roomId, sender, text, createdAt: new Date() }));
+  /** Saves a Message, or returns null if its Group was deleted meanwhile: the wipe may be over already, which would leave this one behind. */
+  private async save(roomId: string, sender: string, text: string, groupDeleted: () => boolean): Promise<SharedMessage | null> {
+    const message = await this.messages.create({ roomId, sender, text, createdAt: new Date() });
+    if (!groupDeleted()) return toSharedMessage(message);
+    await message.deleteOne();
+    return null;
   }
 
   /** Whether `username` may load and send in `roomId`: one of a Private Room's two Users, or a Group's Member (R7, R11). */

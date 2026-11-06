@@ -1,7 +1,4 @@
-import { getModelToken } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
 import { AiClient } from '../src/bot/ai.client';
-import { Group } from '../src/groups/group.schema';
 import type { TestClient } from './app';
 import { startApp } from './app';
 
@@ -147,9 +144,7 @@ test('a sender no longer in the Group is refused until they rejoin', async () =>
   await alice.socket.emitWithAck('createGroup', 'Study');
   await bob.socket.emitWithAck('joinGroup', 'Study');
   const { id } = await send(bob, '#study', 'Oops');
-  // shortcut: removes the Member directly because leaving doesn't exist yet, use the event once #34 adds it.
-  const groups = app.app.get<Model<Group>>(getModelToken(Group.name));
-  await groups.updateOne({ key: 'study' }, { $pull: { members: 'Bob', memberKeys: 'bob' } });
+  await bob.socket.emitWithAck('leaveGroup', { name: 'Study' });
 
   expect(await bob.socket.emitWithAck('unsendMessage', id!)).toEqual({ ok: false, error: 'You are not in this Room.' });
 

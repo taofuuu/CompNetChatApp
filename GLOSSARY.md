@@ -37,11 +37,11 @@ The single Room shared by exactly two Users, the same no matter which of them op
 _Avoid_: DM thread, direct chat
 
 **Group**:
-A Room with a unique name (ignoring case) that any User can join by themselves. It starts with its creator as the only Member and is never deleted.
+A Room with a unique name (ignoring case) that any User can join by themselves. It starts with its creator as the only Member. When its last Member leaves, after a warning, the Group is deleted with its Messages and Announcements, and its name is free again.
 _Avoid_: Channel, chat group, group chat
 
 **Member**:
-A User who has created or joined a Group. Membership never ends.
+A User who has created or joined a Group and hasn't left it. A Member can leave, and while the Group has other Members, can come back with Join and see the full history.
 _Avoid_: Participant, subscriber
 
 **Member Panel**:
@@ -69,5 +69,5 @@ What a User does to one of their own Messages, at any time, while they are in it
 _Avoid_: Delete, recall, retract
 
 **Announcement**:
-A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.
+A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group" or "bob left the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.
 _Avoid_: System message, notice, notification
