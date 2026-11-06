@@ -43,7 +43,7 @@ export function MemberPanel({ names, onlineList, me, onOpen, onKick, onVoteKick 
                     <span className="presence" />
                     {name}
                   </button>
-                  {onVoteKick && online.length >= MIN_ONLINE_FOR_VOTE_KICK && (
+                  {onVoteKick && myPlace !== -1 && online.length >= MIN_ONLINE_FOR_VOTE_KICK && (
                     <button type="button" className="member-kick" aria-label={`Vote to kick ${name}`} onClick={() => onVoteKick(name)}>
                       Vote kick
                     </button>

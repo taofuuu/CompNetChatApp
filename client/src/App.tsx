@@ -233,6 +233,12 @@ export function App() {
     if (await confirm({ title: `Kick ${member}?`, text: `They can't join ${groupName} again for 10 minutes.`, action: 'Kick' })) void askToRemove('kickMember', groupName, member);
   }
 
+  // For the button only, where a slip starts a public vote nobody can cancel. Typing /kick is already deliberate.
+  async function startVoteKick(groupName: string, member: string) {
+    const question = { title: `Vote to kick ${member}?`, text: `Everyone in ${groupName} sees it for 30 seconds, and it can't be cancelled.`, action: 'Start vote' };
+    if (await confirm(question)) await askToRemove('startVoteKick', groupName, member);
+  }
+
   /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
   async function showRoom(title: string, request: Promise<RoomMessagesAck>) {
     try {
@@ -429,7 +435,7 @@ export function App() {
           me={me}
           onOpen={openPrivateRoom}
           onKick={activeGroup && ((name) => kick(activeGroup.name, name))}
-          onVoteKick={activeGroup && ((name) => askToRemove('startVoteKick', activeGroup.name, name))}
+          onVoteKick={activeGroup && ((name) => startVoteKick(activeGroup.name, name))}
         />
       )}
       {confirmPopup}
