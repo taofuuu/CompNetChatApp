@@ -8,14 +8,19 @@ interface Props {
   onOpen: (name: string) => void;
   /** Kicks the Member `name`. Only a Group has this. */
   onKick?: (name: string) => void;
+  /** Starts a Vote Kick on the Member `name`. Only a Group has this. */
+  onVoteKick?: (name: string) => void;
 }
+
+/** The server refuses a vote with fewer Members Online. */
+const MIN_ONLINE_FOR_VOTE_KICK = 3;
 
 /**
  * The column beside a Room: who is in it, and who of them is Online.
  * Only an Online User's name opens a Private Room, because the server refuses one with an Offline User.
- * A Group's offline Members who joined after the viewer have a Kick button; the server enforces the same rule.
+ * A Group's offline Members who joined after the viewer have a Kick button, and its other Online Members a Vote kick button; the server enforces the same rules.
  */
-export function MemberPanel({ names, onlineList, me, onOpen, onKick }: Props) {
+export function MemberPanel({ names, onlineList, me, onOpen, onKick, onVoteKick }: Props) {
   const isOnline = (name: string) => onlineList.some((user) => user.toLowerCase() === name.toLowerCase());
   const online = names.filter(isOnline);
   const offline = names.filter((name) => !isOnline(name));
@@ -26,17 +31,24 @@ export function MemberPanel({ names, onlineList, me, onOpen, onKick }: Props) {
         <h2>Online — {online.length}</h2>
         <ul>
           {online.map((name) => (
-            <li key={name} className="enter">
+            <li key={name} className="member-online enter">
               {name.toLowerCase() === me ? (
                 <div className="row">
                   <span className="presence" />
                   {name} (you)
                 </div>
               ) : (
-                <button type="button" className="row row-button" onClick={() => onOpen(name)}>
-                  <span className="presence" />
-                  {name}
-                </button>
+                <>
+                  <button type="button" className="row row-button" onClick={() => onOpen(name)}>
+                    <span className="presence" />
+                    {name}
+                  </button>
+                  {onVoteKick && online.length >= MIN_ONLINE_FOR_VOTE_KICK && (
+                    <button type="button" className="member-kick" aria-label={`Vote to kick ${name}`} onClick={() => onVoteKick(name)}>
+                      Vote kick
+                    </button>
+                  )}
+                </>
               )}
             </li>
           ))}

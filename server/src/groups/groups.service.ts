@@ -11,6 +11,11 @@ import { groupRoomId } from './group-room';
 export const MAX_GROUP_NAME_LENGTH = 30;
 /** How long a kicked User can't join the Group. */
 const KICK_BLOCK_MS = 10 * 60_000;
+/** With fewer, the starter and the target alone would decide. */
+const MIN_ONLINE_FOR_VOTE_KICK = 3;
+
+/** Whether a Vote Kick can start, and if so, the names it needs. */
+type VoteKickCheck = { ok: true; group: string; target: string; otherVoters: string[] } | { ok: false; error: string };
 
 /**
  * Groups, their Members and their Announcements, saved in MongoDB, and the end of a deleted Group's Messages.
@@ -61,7 +66,7 @@ export class GroupsService implements OnModuleInit {
     return { ok: true };
   }
 
-  /** Adds `username`, and only them, to the Group named `name` (R10), unless a Kick still blocks them. */
+  /** Adds `username`, and only them, to the Group named `name` (R10), unless a Kick or Vote Kick still blocks them. */
   async join(name: unknown, username: string): Promise<Ack> {
     const key = toKey(name);
     const userKey = username.toLowerCase();
@@ -100,11 +105,39 @@ export class GroupsService implements OnModuleInit {
     // The name as stored: an old Group may have it in another spelling.
     const kicked = group.members[targetAt];
     // One atomic update that only matches while both are Members, so a double click kicks once and the asker leaving at this moment can't leave the Group empty.
-    const updated = await this.groups.findOneAndUpdate(
-      { key, memberKeys: { $all: [askerKey, targetKey] } },
-      { $pull: { members: kicked, memberKeys: targetKey }, $set: { [`blockedUntil.${targetKey}`]: new Date(Date.now() + KICK_BLOCK_MS) } },
-    );
+    const updated = await this.groups.findOneAndUpdate({ key, memberKeys: { $all: [askerKey, targetKey] } }, removeAndBlock(kicked));
     return updated ? { ok: true, kicked } : { ok: false, error: 'They are not a Member of this Group.' };
+  }
+
+  /** Removes the Member `target` a Vote Kick passed against, with the block of a Kick. False if they're gone already. Never the last Member, so a Group is never empty. */
+  async voteOut(group: string, target: string): Promise<boolean> {
+    const updated = await this.groups.findOneAndUpdate(
+      { key: group.toLowerCase(), memberKeys: target.toLowerCase(), 'memberKeys.1': { $exists: true } },
+      removeAndBlock(target),
+    );
+    return updated !== null;
+  }
+
+  /** Checks `asker` can start a Vote Kick on `target` in the Group named `name`, and says who else votes: the Online Members, fixed from now on. */
+  async checkVoteKick(name: unknown, target: unknown, asker: string): Promise<VoteKickCheck> {
+    const targetKey = toKey(target);
+    const askerKey = asker.toLowerCase();
+    const group = await this.groups.findOne({ key: toKey(name) }).lean();
+    if (!group) return { ok: false, error: 'There is no such Group.' };
+    if (!group.memberKeys.includes(askerKey)) return { ok: false, error: 'You are not a Member of this Group.' };
+    const targetAt = group.memberKeys.indexOf(targetKey);
+    if (targetAt === -1) return { ok: false, error: 'They are not a Member of this Group.' };
+    if (targetKey === askerKey) return { ok: false, error: "You can't vote to kick yourself." };
+    if (!this.onlineList.isOnline(targetKey)) return { ok: false, error: 'You can only vote to kick a Member who is Online.' };
+    const online = group.memberKeys.filter((key) => this.onlineList.isOnline(key));
+    if (online.length < MIN_ONLINE_FOR_VOTE_KICK) return { ok: false, error: `A vote needs at least ${MIN_ONLINE_FOR_VOTE_KICK} Members Online.` };
+    return {
+      ok: true,
+      group: group.name,
+      // The name as stored: an old Group may have it in another spelling.
+      target: group.members[targetAt],
+      otherVoters: online.filter((key) => key !== targetKey && key !== askerKey),
+    };
   }
 
   /** Every block running on `username`. */
@@ -181,6 +214,12 @@ export class GroupsService implements OnModuleInit {
 /** The lowercase form of a name a Client sent. Anything but a string becomes '', which matches nothing. */
 function toKey(name: unknown) {
   return typeof name === 'string' ? name.trim().toLowerCase() : '';
+}
+
+/** The update that removes `member`, spelled as stored, and blocks them from joining for a while. */
+function removeAndBlock(member: string) {
+  const key = member.toLowerCase();
+  return { $pull: { members: member, memberKeys: key }, $set: { [`blockedUntil.${key}`]: new Date(Date.now() + KICK_BLOCK_MS) } };
 }
 
 /** `ms` as minutes and seconds, rounded up, e.g. 9:05. */

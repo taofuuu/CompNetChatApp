@@ -1,8 +1,10 @@
 import type { Ack, ClientToServerEvents, GroupSummary, ServerToClientEvents } from '@compnet/shared';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
 import { groupRoomId } from './group-room';
+import { useSecondsLeft } from './seconds-left';
+import type { LiveVoteKick } from './VoteKickBanner';
 
 interface Props {
   socket: Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -14,6 +16,8 @@ interface Props {
   unreadCounts: Record<string, number>;
   /** When each Group's block on the viewer ends, by Group name, on the `performance.now()` clock. */
   kickBlocks: Record<string, number>;
+  /** The Vote Kick running in each of the viewer's Groups, by Room id. */
+  voteKicks: Record<string, LiveVoteKick>;
   /** Opens the Room of the Group named `name`. */
   onOpen: (name: string) => void;
 }
@@ -25,17 +29,10 @@ interface JoinButtonProps {
   onJoin: () => void;
 }
 
-/** A Join button, disabled beside a live countdown while a Kick blocks the viewer. Give it a new `key` for each block, so it starts from the current time. */
+/** A Join button, disabled beside a live countdown while a Kick or Vote Kick blocks the viewer. Give it a new `key` for each block, so it starts from the current time. */
 function JoinButton({ blockedUntil = 0, busy, onJoin }: JoinButtonProps) {
-  const [now, setNow] = useState(() => performance.now());
-  const secondsLeft = Math.ceil((blockedUntil - now) / 1000);
+  const secondsLeft = useSecondsLeft(blockedUntil);
   const blocked = secondsLeft > 0;
-
-  useEffect(() => {
-    if (!blocked) return;
-    const timer = setInterval(() => setNow(performance.now()), 1000);
-    return () => clearInterval(timer);
-  }, [blocked]);
 
   return (
     <>
@@ -55,7 +52,7 @@ function JoinButton({ blockedUntil = 0, busy, onJoin }: JoinButtonProps) {
  * The Create Group form and the Group list, each Group with its Members.
  * A Group you're a Member of opens its Room when clicked; any other has a Join button, which also opens it.
  */
-export function Groups({ socket, groups, me, activeRoomId, unreadCounts, kickBlocks, onOpen }: Props) {
+export function Groups({ socket, groups, me, activeRoomId, unreadCounts, kickBlocks, voteKicks, onOpen }: Props) {
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -116,6 +113,7 @@ export function Groups({ socket, groups, me, activeRoomId, unreadCounts, kickBlo
                   onClick={() => onOpen(group.name)}
                 >
                   <strong>{group.name}</strong>
+                  {voteKicks[roomId] && <span className="vote-tag">Vote</span>}
                   {unread > 0 && (
                     // The key restarts the pop on every new count.
                     <span key={unread} className="unread-count" aria-label={`${unread} unread`}>

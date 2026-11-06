@@ -332,6 +332,22 @@ input:focus-visible {
   animation: pop var(--calm) var(--ease);
 }
 
+.vote-tag {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.35rem;
+  background: var(--alert);
+  color: var(--alert-ink);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.vote-tag + .unread-count {
+  margin-left: 0;
+}
+
 .group-form {
   display: flex;
   gap: 0.35rem;
@@ -521,8 +537,15 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
+.member-online {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .message-unsend,
 .member-kick {
+  flex: none;
   margin-left: auto;
   padding: 0;
   background: none;
@@ -539,6 +562,7 @@ input:focus-visible {
 .message-item:hover .message-unsend,
 .message-unsend:focus-visible,
 .member-offline:hover .member-kick,
+.member-online:hover .member-kick,
 .member-kick:focus-visible {
   opacity: 1;
 }
@@ -600,6 +624,34 @@ input:focus-visible {
 
 .dots i:nth-child(3) {
   animation-delay: 0.3s;
+}
+
+.vote-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  width: min(48rem, 100% - 3rem);
+  margin: 0.6rem auto 0;
+  padding: 0.4rem 0.7rem;
+  background: var(--alert);
+  color: var(--alert-ink);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.vote-banner p {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.vote-countdown {
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-banner .button {
+  padding: 0.15rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 .empty-history {
