@@ -2,6 +2,7 @@ import type { ClientToServerEvents, HistoryEntry, ServerToClientEvents } from '@
 import { type FormEvent, useLayoutEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
+import type { Question } from './confirm-popup';
 import { type LiveVoteKick, VoteKickBanner } from './VoteKickBanner';
 
 export const BOT_NAME = 'bot';
@@ -27,6 +28,8 @@ interface Props {
   typers: string[];
   /** The viewer's lowercase username. */
   me: string;
+  /** Asks the User in a popup; true if they said yes. */
+  confirm: (question: Question) => Promise<boolean>;
 }
 
 function formatTime(isoString: string): string {
@@ -65,7 +68,7 @@ function Dots({ label }: { label: string }) {
  * A Room panel: displays message history in a scrollable message window
  * and provides a text box for sending Messages.
  */
-export function Room({ socket, roomId, title, subtitle, groupName, voteKick, messages, botDraft, typers, me }: Props) {
+export function Room({ socket, roomId, title, subtitle, groupName, voteKick, messages, botDraft, typers, me, confirm }: Props) {
   const [inputText, setInputText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -120,7 +123,7 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
   }
 
   async function unsend(id: string) {
-    if (!confirm("Unsend this Message? This can't be undone.")) return;
+    if (!(await confirm({ title: 'Unsend this Message?', text: "This can't be undone.", action: 'Unsend' }))) return;
     try {
       const result = await socket.timeout(10_000).emitWithAck('unsendMessage', id);
       setError(result.ok ? '' : result.error);
@@ -150,7 +153,8 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
     try {
       let result = await ask(false);
       if (!result.ok && result.lastMember) {
-        if (!confirm(`You are the last Member of ${name}. Leaving deletes the Group and all its Messages for good.`)) return;
+        const text = `You are the last Member of ${name}. Leaving deletes the Group and all its Messages for good.`;
+        if (!(await confirm({ title: `Leave ${name}?`, text, action: 'Leave and delete' }))) return;
         result = await ask(true);
       }
       setError(result.ok ? '' : result.error);

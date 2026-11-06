@@ -12,6 +12,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
 import { Banner } from './Banner';
+import { useConfirm } from './confirm-popup';
 import { groupRoomId } from './group-room';
 import { Groups } from './Groups';
 import { MemberPanel } from './MemberPanel';
@@ -54,6 +55,7 @@ export function App() {
   const [typers, setTypers] = useState<Record<string, string[]>>({});
   const typingTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [error, setError] = useState('');
+  const [confirm, confirmPopup] = useConfirm();
 
   /** Shows or hides `username`'s typing bubble in `roomId`. Showing it again restarts its time. */
   function showTyping(roomId: string, username: string, isTyping: boolean) {
@@ -215,8 +217,8 @@ export function App() {
   }
 
   // A prompt, because the Kick is instant and nobody else has to agree.
-  function kick(groupName: string, member: string) {
-    if (confirm(`Kick ${member} from ${groupName}? They can't join again for 10 minutes.`)) void askToRemove('kickMember', groupName, member);
+  async function kick(groupName: string, member: string) {
+    if (await confirm({ title: `Kick ${member}?`, text: `They can't join ${groupName} again for 10 minutes.`, action: 'Kick' })) void askToRemove('kickMember', groupName, member);
   }
 
   /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
@@ -367,6 +369,7 @@ export function App() {
             botDraft={botDrafts[activeRoom.roomId]}
             typers={typers[activeRoom.roomId] || []}
             me={me}
+            confirm={confirm}
           />
         ) : (
           <div className="empty-panel">
@@ -386,6 +389,7 @@ export function App() {
           onVoteKick={activeGroup && ((name) => askToRemove('startVoteKick', activeGroup.name, name))}
         />
       )}
+      {confirmPopup}
     </main>
   );
 }
