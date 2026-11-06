@@ -87,7 +87,7 @@ export class MessagesService {
   }
 
   /** Whether `username` may load and send in `roomId`: one of a Private Room's two Users, or a Group's Member (R7, R11). */
-  private async isInRoom(username: string, roomId: string): Promise<boolean> {
+  async isInRoom(username: string, roomId: string): Promise<boolean> {
     const groupKey = groupKeyOf(roomId);
     if (groupKey !== undefined) return this.groups.isMember(groupKey, username);
     return isUserInPrivateRoom(username, roomId);

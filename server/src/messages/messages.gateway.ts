@@ -76,6 +76,14 @@ export class MessagesGateway implements OnGatewayConnection {
     return { ok: false, error: result.error };
   }
 
+  /** Tells the Room's other Users that this User is typing. A refused request gets no answer: there is nothing to retry. */
+  @SubscribeMessage('typing')
+  async typing(@ConnectedSocket() socket: ChatSocket, @MessageBody() roomId: unknown) {
+    const { username } = socket.data;
+    if (typeof roomId !== 'string' || !(await this.messagesService.isInRoom(username, roomId))) return;
+    this.toRoom(roomId).except(`user:${username.toLowerCase()}`).emit('typing', { roomId, username });
+  }
+
   private async answerAsBot(roomId: string, asker: string) {
     if (this.botAnswering.has(roomId) || this.botAnswering.has(asker)) return;
     this.botAnswering.add(roomId).add(asker);

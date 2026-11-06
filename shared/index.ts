@@ -48,6 +48,12 @@ export interface BotChunk {
   text: string;
 }
 
+/** A User is typing in a Room. Never saved: a Client shows it for a moment and then forgets it. */
+export interface Typing {
+  roomId: string;
+  username: string;
+}
+
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
@@ -57,6 +63,8 @@ export interface ServerToClientEvents {
   message: (message: Message) => void;
   /** The next piece of the bot's reply in a Room the Client is in. */
   botChunk: (chunk: BotChunk) => void;
+  /** Another User in a Room the Client is in is typing. */
+  typing: (typing: Typing) => void;
 }
 
 export interface ClientToServerEvents {
@@ -70,4 +78,6 @@ export interface ClientToServerEvents {
   loadMessages: (roomId: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Sends a Message into `roomId`. */
   sendMessage: (payload: SendMessagePayload, ack: (result: Ack) => void) => void;
+  /** Says the sender is typing in `roomId`. Repeated while they type; there is no "stopped" event. */
+  typing: (roomId: string) => void;
 }
