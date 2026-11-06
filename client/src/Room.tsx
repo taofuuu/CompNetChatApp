@@ -13,7 +13,7 @@ interface Props {
   socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   roomId: string;
   title: string;
-  /** The line under the title: who is in the Room. */
+  /** The line under the title: a Group's Member count, or whether the other User is Online. */
   subtitle: string;
   messages: Message[];
   /** The bot's reply so far, empty before its first word, or undefined when it isn't answering. */

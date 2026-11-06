@@ -232,21 +232,31 @@ input:focus-visible {
 
 .chat-layout {
   display: grid;
-  grid-template-columns: 18rem minmax(0, 1fr);
+  /* The last column is the Member Panel, which is only there while a Room is open. */
+  grid-template-columns: 18rem minmax(0, 1fr) auto;
   height: 100%;
 }
 
-.sidebar {
+.sidebar,
+.member-panel {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
   padding: 1rem 0.75rem;
   background: var(--shelf);
-  border-right: 1px solid var(--rule);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--rule) transparent;
+}
+
+.sidebar {
+  border-right: 1px solid var(--rule);
   view-transition-name: sidebar;
+}
+
+.member-panel {
+  width: 13rem;
+  border-left: 1px solid var(--rule);
 }
 
 .sidebar .brand {
@@ -257,7 +267,8 @@ input:focus-visible {
   margin-top: auto;
 }
 
-.sidebar h2 {
+.sidebar h2,
+.member-panel h2 {
   margin-bottom: 0.3rem;
   padding: 0 0.5rem;
   color: var(--muted);
@@ -297,6 +308,14 @@ input:focus-visible {
   height: 8px;
   background: var(--online);
   border-radius: 50%;
+}
+
+.member-offline {
+  color: var(--muted);
+}
+
+.member-offline .presence {
+  background: var(--muted);
 }
 
 .unread-count {
@@ -634,7 +653,7 @@ input:focus-visible {
   }
 }
 
-/* Laptop first: a narrow window just stacks the sidebar above the Room. */
+/* Laptop first: a narrow window just stacks the sidebar above the Room and drops the Member Panel. */
 @media (max-width: 48rem) {
   .chat-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -644,5 +663,9 @@ input:focus-visible {
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--rule);
+  }
+
+  .member-panel {
+    display: none;
   }
 }
