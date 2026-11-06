@@ -50,7 +50,7 @@ export function MemberPanel({ names, onlineList, me, onOpen, onKick }: Props) {
             <li key={name} className="row member-offline enter">
               <span className="presence" />
               {name}
-              {onKick && names.indexOf(name) > myPlace && (
+              {onKick && myPlace !== -1 && names.indexOf(name) > myPlace && (
                 <button type="button" className="member-kick" aria-label={`Kick ${name}`} onClick={() => onKick(name)}>
                   Kick
                 </button>
