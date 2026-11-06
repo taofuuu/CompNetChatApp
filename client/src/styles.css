@@ -389,6 +389,24 @@ input:focus-visible {
   background: #fff;
 }
 
+.join-button:disabled {
+  border-color: var(--rule);
+  background: var(--sheet);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.join-countdown {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.join-countdown + .join-button {
+  margin-left: 0;
+}
+
 /* The main panel */
 
 .main-panel {
@@ -503,7 +521,8 @@ input:focus-visible {
   white-space: pre-wrap;
 }
 
-.message-unsend {
+.message-unsend,
+.member-kick {
   margin-left: auto;
   padding: 0;
   background: none;
@@ -518,13 +537,16 @@ input:focus-visible {
 }
 
 .message-item:hover .message-unsend,
-.message-unsend:focus-visible {
+.message-unsend:focus-visible,
+.member-offline:hover .member-kick,
+.member-kick:focus-visible {
   opacity: 1;
 }
 
 /* A touch screen has no hover. */
 @media (hover: none) {
-  .message-unsend {
+  .message-unsend,
+  .member-kick {
     opacity: 1;
   }
 }

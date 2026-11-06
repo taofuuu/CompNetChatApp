@@ -1,5 +1,5 @@
 import type { Ack, ClientToServerEvents, GroupSummary, ServerToClientEvents } from '@compnet/shared';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
 import { groupRoomId } from './group-room';
@@ -12,15 +12,50 @@ interface Props {
   /** The Room open in the main panel, if any. */
   activeRoomId?: string;
   unreadCounts: Record<string, number>;
+  /** When each Group's block on the viewer ends, by Group name, on the `performance.now()` clock. */
+  kickBlocks: Record<string, number>;
   /** Opens the Room of the Group named `name`. */
   onOpen: (name: string) => void;
+}
+
+interface JoinButtonProps {
+  /** When the block on the viewer ends, on the `performance.now()` clock, if there is one. */
+  blockedUntil?: number;
+  busy: boolean;
+  onJoin: () => void;
+}
+
+/** A Join button, disabled beside a live countdown while a Kick blocks the viewer. Give it a new `key` for each block, so it starts from the current time. */
+function JoinButton({ blockedUntil = 0, busy, onJoin }: JoinButtonProps) {
+  const [now, setNow] = useState(() => performance.now());
+  const secondsLeft = Math.ceil((blockedUntil - now) / 1000);
+  const blocked = secondsLeft > 0;
+
+  useEffect(() => {
+    if (!blocked) return;
+    const timer = setInterval(() => setNow(performance.now()), 1000);
+    return () => clearInterval(timer);
+  }, [blocked]);
+
+  return (
+    <>
+      {blocked && (
+        <small className="join-countdown" role="timer" aria-label={`You can join again in ${secondsLeft} seconds`}>
+          {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
+        </small>
+      )}
+      <button className="join-button" disabled={busy || blocked} onClick={onJoin}>
+        Join
+      </button>
+    </>
+  );
 }
 
 /**
  * The Create Group form and the Group list, each Group with its Members.
  * A Group you're a Member of opens its Room when clicked; any other has a Join button, which also opens it.
  */
-export function Groups({ socket, groups, me, activeRoomId, unreadCounts, onOpen }: Props) {
+export function Groups({ socket, groups, me, activeRoomId, unreadCounts, kickBlocks, onOpen }: Props) {
   const [newName, setNewName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -91,9 +126,7 @@ export function Groups({ socket, groups, me, activeRoomId, unreadCounts, onOpen 
               ) : (
                 <div className="row">
                   <strong>{group.name}</strong>
-                  <button className="join-button" disabled={busy} onClick={() => join(group.name)}>
-                    Join
-                  </button>
+                  <JoinButton key={kickBlocks[group.name]} blockedUntil={kickBlocks[group.name]} busy={busy} onJoin={() => join(group.name)} />
                 </div>
               )}
               <small className="group-members">Members: {group.members.join(', ')}</small>

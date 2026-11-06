@@ -6,16 +6,20 @@ interface Props {
   me: string;
   /** Opens the Private Room with `name`. */
   onOpen: (name: string) => void;
+  /** Kicks the Member `name`. Only a Group has this. */
+  onKick?: (name: string) => void;
 }
 
 /**
  * The column beside a Room: who is in it, and who of them is Online.
  * Only an Online User's name opens a Private Room, because the server refuses one with an Offline User.
+ * A Group's offline Members who joined after the viewer have a Kick button; the server enforces the same rule.
  */
-export function MemberPanel({ names, onlineList, me, onOpen }: Props) {
+export function MemberPanel({ names, onlineList, me, onOpen, onKick }: Props) {
   const isOnline = (name: string) => onlineList.some((user) => user.toLowerCase() === name.toLowerCase());
   const online = names.filter(isOnline);
   const offline = names.filter((name) => !isOnline(name));
+  const myPlace = names.findIndex((name) => name.toLowerCase() === me);
   return (
     <aside className="member-panel" aria-label="Users in this Room">
       <section>
@@ -46,6 +50,11 @@ export function MemberPanel({ names, onlineList, me, onOpen }: Props) {
             <li key={name} className="row member-offline enter">
               <span className="presence" />
               {name}
+              {onKick && myPlace !== -1 && names.indexOf(name) > myPlace && (
+                <button type="button" className="member-kick" aria-label={`Kick ${name}`} onClick={() => onKick(name)}>
+                  Kick
+                </button>
+              )}
             </li>
           ))}
         </ul>
