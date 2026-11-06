@@ -76,6 +76,14 @@ export class MessagesGateway implements OnGatewayConnection {
     return { ok: false, error: result.error };
   }
 
+  @SubscribeMessage('unsendMessage')
+  async unsendMessage(@ConnectedSocket() socket: ChatSocket, @MessageBody() id: unknown): Promise<Ack> {
+    const result = await this.messagesService.unsend(socket.data.username, id);
+    if (!result.ok) return result;
+    this.toRoom(result.roomId).emit('messageUnsent', { roomId: result.roomId, id: result.id });
+    return { ok: true };
+  }
+
   /** Tells the Room's other Users that this User is typing. A refused request gets no answer: there is nothing to retry. */
   @SubscribeMessage('typing')
   async typing(@ConnectedSocket() socket: ChatSocket, @MessageBody() roomId: unknown) {
@@ -89,6 +97,7 @@ export class MessagesGateway implements OnGatewayConnection {
     this.botAnswering.add(roomId).add(asker);
     // Nest doesn't see this promise, so an error here would be an unhandled rejection that stops the whole server.
     try {
+      // shortcut: read once, so a Message unsent while bot is answering still reaches the model this time; re-read before the main AI call if that matters.
       const history = await this.messagesService.recent(roomId, BOT_CONTEXT_MESSAGES);
       const reply = await this.bot.reply(history, (text) => this.toRoom(roomId).emit('botChunk', { roomId, text }));
       this.toRoom(roomId).emit('message', await this.messagesService.saveBotReply(roomId, reply));

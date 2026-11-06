@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Message as SharedMessage, RoomMessagesAck } from '@compnet/shared';
-import type { Model } from 'mongoose';
+import { isObjectIdOrHexString, type Model, type Types } from 'mongoose';
 import { BOT_NAME } from '../bot/bot-name';
 import { groupKeyOf } from '../groups/group-room';
 import { GroupsService } from '../groups/groups.service';
@@ -76,9 +76,36 @@ export class MessagesService {
     return this.save(roomId, BOT_NAME, text);
   }
 
-  /** The latest `limit` Messages of `roomId`, oldest first. */
+  /**
+   * Wipes the text of Message `id`, leaving its place and time, and returns the Room it was in and its id as Clients hold it.
+   * Refuses anyone but the sender, and a sender no longer in the Room. That also refuses bot's Messages: nobody can be bot.
+   */
+  async unsend(
+    requester: string,
+    id: unknown,
+  ): Promise<{ ok: true; roomId: string; id: string } | { ok: false; error: string }> {
+    // typeof first: a payload shaped like an ObjectId would pass the other check, and only strings come from Clients.
+    const message = typeof id === 'string' && isObjectIdOrHexString(id) ? await this.messages.findById(id).lean() : null;
+    if (!message) return { ok: false, error: 'There is no such Message.' };
+    if (!(await this.isInRoom(requester, message.roomId))) {
+      return { ok: false, error: 'You are not in this Room.' };
+    }
+    if (message.sender.toLowerCase() !== requester.toLowerCase()) {
+      return { ok: false, error: 'You can only unsend your own Messages.' };
+    }
+    // Matches only if not yet unsent, so two Clients unsending at once can't both succeed.
+    const { modifiedCount } = await this.messages.updateOne(
+      { _id: message._id, unsent: { $ne: true } },
+      { text: '', unsent: true },
+    );
+    if (modifiedCount === 0) return { ok: false, error: 'This Message is already unsent.' };
+    // Not the id it was given: that may be in capitals, and Clients match the id exactly.
+    return { ok: true, roomId: message.roomId, id: message._id.toString() };
+  }
+
+  /** The latest `limit` Messages of `roomId` that are not unsent, oldest first. */
   async recent(roomId: string, limit: number): Promise<SharedMessage[]> {
-    const docs = await this.messages.find({ roomId }).sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
+    const docs = await this.messages.find({ roomId, unsent: { $ne: true } }).sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
     return docs.reverse().map(toSharedMessage);
   }
 
@@ -100,6 +127,6 @@ export class MessagesService {
   }
 }
 
-function toSharedMessage({ roomId, sender, text, createdAt }: Message): SharedMessage {
-  return { roomId, sender, text, createdAt: createdAt.toISOString() };
+function toSharedMessage({ _id, roomId, sender, text, createdAt, unsent }: Message & { _id: Types.ObjectId }): SharedMessage {
+  return { id: _id.toString(), roomId, sender, text, createdAt: createdAt.toISOString(), unsent };
 }

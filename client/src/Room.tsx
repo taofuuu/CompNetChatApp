@@ -114,6 +114,16 @@ export function Room({ socket, roomId, title, subtitle, messages, botDraft, type
     }
   }
 
+  async function unsend(id: string) {
+    if (!confirm("Unsend this Message? This can't be undone.")) return;
+    try {
+      const result = await socket.timeout(10_000).emitWithAck('unsendMessage', id);
+      setError(result.ok ? '' : result.error);
+    } catch {
+      setError('No answer from the server. Try again.');
+    }
+  }
+
   return (
     <section className="room-panel" aria-label={`Room: ${title}`}>
       <header className="room-header">
@@ -135,6 +145,7 @@ export function Room({ socket, roomId, title, subtitle, messages, botDraft, type
         ) : (
           <ul className="message-list">
             {messages.map((message, i) => {
+              const { id } = message;
               const isBot = message.sender === BOT_NAME;
               const isSelf = message.sender.toLowerCase() === me;
               const side = isBot ? 'message-bot' : isSelf ? 'message-self' : 'message-other';
@@ -150,8 +161,19 @@ export function Room({ socket, roomId, title, subtitle, messages, botDraft, type
                     <time className="message-time" dateTime={message.createdAt}>
                       {formatTime(message.createdAt)}
                     </time>
+                    {isSelf && id && !message.unsent && (
+                      <button type="button" className="message-unsend" onClick={() => unsend(id)}>
+                        Unsend
+                      </button>
+                    )}
                   </div>
-                  {isBot ? <BotText text={message.text} /> : <div className="message-text">{message.text}</div>}
+                  {message.unsent ? (
+                    <div className="message-text message-unsent">{message.sender} unsent a Message</div>
+                  ) : isBot ? (
+                    <BotText text={message.text} />
+                  ) : (
+                    <div className="message-text">{message.text}</div>
+                  )}
                 </li>
               );
             })}

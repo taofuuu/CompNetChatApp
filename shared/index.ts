@@ -24,11 +24,16 @@ export interface GroupSummary {
 
 /** A Message sent into a Room. */
 export interface Message {
+  /** Missing only on a notice from bot that couldn't be saved. */
+  id?: string;
   /** `alice:bob` for a Private Room (both lowercase usernames, sorted), `#study` for a Group (its lowercase name). */
   roomId: string;
   sender: string;
+  /** Empty once the Message is unsent: the text is gone from the database too. */
   text: string;
   createdAt: string;
+  /** Set once the sender has unsent it. A Client then shows a placeholder in its place. */
+  unsent?: boolean;
 }
 
 /** The server's answer when opening a Room or loading its history. */
@@ -48,6 +53,12 @@ export interface BotChunk {
   text: string;
 }
 
+/** A Message that has just been unsent. Carries no text: the Client already has the rest of the Message, if it has it at all. */
+export interface MessageUnsent {
+  roomId: string;
+  id: string;
+}
+
 /** A User is typing in a Room. Never saved: a Client shows it for a moment and then forgets it. */
 export interface Typing {
   roomId: string;
@@ -61,6 +72,8 @@ export interface ServerToClientEvents {
   groupList: (groups: GroupSummary[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
+  /** A Message in a Room the Client is in was unsent. */
+  messageUnsent: (unsent: MessageUnsent) => void;
   /** The next piece of the bot's reply in a Room the Client is in. */
   botChunk: (chunk: BotChunk) => void;
   /** Another User in a Room the Client is in is typing. */
@@ -78,6 +91,8 @@ export interface ClientToServerEvents {
   loadMessages: (roomId: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Sends a Message into `roomId`. */
   sendMessage: (payload: SendMessagePayload, ack: (result: Ack) => void) => void;
+  /** Unsends the sender's own Message with this id. It can't be undone. */
+  unsendMessage: (id: string, ack: (result: Ack) => void) => void;
   /** Says the sender is typing in `roomId`. Repeated while they type; there is no "stopped" event. */
   typing: (roomId: string) => void;
 }
