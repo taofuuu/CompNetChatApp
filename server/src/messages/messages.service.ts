@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Message as SharedMessage, RoomMessagesAck } from '@compnet/shared';
+import type { HistoryEntry, Message as SharedMessage, RoomMessagesAck } from '@compnet/shared';
 import { isObjectIdOrHexString, type Model, type Types } from 'mongoose';
 import { BOT_NAME } from '../bot/bot-name';
 import { groupKeyOf } from '../groups/group-room';
@@ -120,10 +120,12 @@ export class MessagesService {
     return isUserInPrivateRoom(username, roomId);
   }
 
-  /** Loads full history for `roomId` in chronological order. */
-  private async loadHistory(roomId: string): Promise<SharedMessage[]> {
+  /** Loads full history for `roomId`, Messages and Announcements, in chronological order. */
+  private async loadHistory(roomId: string): Promise<HistoryEntry[]> {
     const docs = await this.messages.find({ roomId }).sort({ createdAt: 1, _id: 1 }).lean();
-    return docs.map(toSharedMessage);
+    const announcements = groupKeyOf(roomId) !== undefined ? await this.groups.announcementsOf(roomId) : [];
+    // The times are all from toISOString, so they sort as text. The sort is stable, which keeps Messages in their order.
+    return [...docs.map(toSharedMessage), ...announcements].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 }
 

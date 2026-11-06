@@ -36,9 +36,19 @@ export interface Message {
   unsent?: boolean;
 }
 
-/** The server's answer when opening a Room or loading its history. */
+/** A line the Chat App itself adds to a Group's Room. Having no sender is what tells it from a Message. */
+export interface Announcement {
+  roomId: string;
+  text: string;
+  createdAt: string;
+}
+
+/** One line of a Room's history. */
+export type HistoryEntry = Message | Announcement;
+
+/** The server's answer when opening a Room or loading its history, oldest first. */
 export type RoomMessagesAck =
-  | { ok: true; roomId: string; messages: Message[] }
+  | { ok: true; roomId: string; messages: HistoryEntry[] }
   | { ok: false; error: string };
 
 /** The payload for sending a Message into a Room. */
@@ -72,6 +82,8 @@ export interface ServerToClientEvents {
   groupList: (groups: GroupSummary[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
+  /** A new Announcement in a Group the Client is in. */
+  announcement: (announcement: Announcement) => void;
   /** A Message in a Room the Client is in was unsent. */
   messageUnsent: (unsent: MessageUnsent) => void;
   /** The next piece of the bot's reply in a Room the Client is in. */

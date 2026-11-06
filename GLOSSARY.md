@@ -67,3 +67,7 @@ _Avoid_: Chat, post
 **Unsend**:
 What a User does to one of their own Messages, at any time, while they are in its Room. Its text is wiped for good, and everyone in the Room sees "alice unsent a Message" in its place, with the same time. bot's Messages can't be unsent, and bot's reply to an unsent `@bot` question stays.
 _Avoid_: Delete, recall, retract
+
+**Announcement**:
+A line the Chat App itself adds to a Group's Room when something happens to the Group, such as "bob joined the Group", shown centred and grey with its time. It is not a Message: no User or bot sends it, so it can't be unsent, it raises no unread count and bot never sees it. It stays in the Room's history, so a Member who joins later sees it too. Creating a Group adds none, and Private Rooms never have any.
+_Avoid_: System message, notice, notification
