@@ -17,6 +17,13 @@ export class Group {
   /** `members` in lowercase, so "already a Member" can be checked ignoring case inside the update itself. */
   @Prop({ type: [String], required: true })
   memberKeys: string[];
+
+  /**
+   * When each User kicked from this Group, by lowercase name, can join again. A deleted Group's blocks go with it.
+   * shortcut: a block that ended stays here, one small entry per kicked User; remove it on Join if Groups ever collect many.
+   */
+  @Prop({ type: Map, of: Date })
+  blockedUntil?: Record<string, Date>;
 }
 
 export const GroupSchema = SchemaFactory.createForClass(Group);

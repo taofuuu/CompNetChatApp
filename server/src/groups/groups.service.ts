@@ -1,13 +1,16 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Ack, Announcement as SharedAnnouncement, GroupSummary, LeaveGroupAck } from '@compnet/shared';
+import type { Ack, Announcement as SharedAnnouncement, GroupSummary, KickBlock, LeaveGroupAck } from '@compnet/shared';
 import type { Model } from 'mongoose';
 import { Message } from '../messages/message.schema';
+import { OnlineListService } from '../online-list/online-list.service';
 import { Announcement } from './announcement.schema';
 import { Group } from './group.schema';
 import { groupRoomId } from './group-room';
 
 export const MAX_GROUP_NAME_LENGTH = 30;
+/** How long a kicked User can't join the Group. */
+const KICK_BLOCK_MS = 10 * 60_000;
 
 /**
  * Groups, their Members and their Announcements, saved in MongoDB, and the end of a deleted Group's Messages.
@@ -26,6 +29,7 @@ export class GroupsService implements OnModuleInit {
     @InjectModel(Group.name) private readonly groups: Model<Group>,
     @InjectModel(Announcement.name) private readonly announcements: Model<Announcement>,
     @InjectModel(Message.name) private readonly messages: Model<Message>,
+    private readonly onlineList: OnlineListService,
   ) {}
 
   async onModuleInit() {
@@ -57,18 +61,58 @@ export class GroupsService implements OnModuleInit {
     return { ok: true };
   }
 
-  /** Adds `username`, and only them, to the Group named `name` (R10). */
+  /** Adds `username`, and only them, to the Group named `name` (R10), unless a Kick still blocks them. */
   async join(name: unknown, username: string): Promise<Ack> {
-    const key = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    const key = toKey(name);
     const userKey = username.toLowerCase();
-    // One atomic update that only matches if the User isn't a Member yet, so a double click can't add them twice.
+    // One atomic update that only matches if the User isn't a Member yet and isn't blocked, so a double click can't add them twice.
     const joined = await this.groups.findOneAndUpdate(
-      { key, memberKeys: { $ne: userKey } },
+      { key, memberKeys: { $ne: userKey }, [`blockedUntil.${userKey}`]: { $not: { $gt: new Date() } } },
       { $push: { members: username, memberKeys: userKey } },
     );
     if (joined) return { ok: true };
-    const group = await this.groups.exists({ key });
-    return { ok: false, error: group ? 'You are already a Member of this Group.' : 'There is no such Group.' };
+    const group = await this.groups.findOne({ key }).lean();
+    if (!group) return { ok: false, error: 'There is no such Group.' };
+    const blockedUntil = group.blockedUntil?.[userKey];
+    if (blockedUntil && !group.memberKeys.includes(userKey)) {
+      return { ok: false, error: `You were kicked from this Group. You can join again in ${formatTimeLeft(blockedUntil.getTime() - Date.now())}.` };
+    }
+    return { ok: false, error: 'You are already a Member of this Group.' };
+  }
+
+  /**
+   * Removes the offline Member `target` from the Group named `name` for `asker`, and blocks them from joining for a while.
+   * `target` must have joined after `asker`: otherwise a stranger could join a Group whose Members are all offline, kick them all and delete its history by leaving.
+   */
+  async kick(name: unknown, target: unknown, asker: string): Promise<{ ok: true; kicked: string } | { ok: false; error: string }> {
+    const key = toKey(name);
+    const targetKey = toKey(target);
+    const askerKey = asker.toLowerCase();
+    const group = await this.groups.findOne({ key }).lean();
+    if (!group) return { ok: false, error: 'There is no such Group.' };
+    const askerAt = group.memberKeys.indexOf(askerKey);
+    const targetAt = group.memberKeys.indexOf(targetKey);
+    if (askerAt === -1) return { ok: false, error: 'You are not a Member of this Group.' };
+    if (targetAt === -1) return { ok: false, error: 'They are not a Member of this Group.' };
+    if (targetAt <= askerAt) return { ok: false, error: 'You can only kick Members who joined after you.' };
+    // shortcut: someone coming Online between this check and the update is kicked all the same, and the gateway tells their Client; check again after the update if Users hit this.
+    if (this.onlineList.isOnline(targetKey)) return { ok: false, error: 'You can only kick a Member who is offline.' };
+    // The name as stored: an old Group may have it in another spelling.
+    const kicked = group.members[targetAt];
+    // One atomic update that only matches while both are Members, so a double click kicks once and the asker leaving at this moment can't leave the Group empty.
+    const updated = await this.groups.findOneAndUpdate(
+      { key, memberKeys: { $all: [askerKey, targetKey] } },
+      { $pull: { members: kicked, memberKeys: targetKey }, $set: { [`blockedUntil.${targetKey}`]: new Date(Date.now() + KICK_BLOCK_MS) } },
+    );
+    return updated ? { ok: true, kicked } : { ok: false, error: 'They are not a Member of this Group.' };
+  }
+
+  /** Every block running on `username`. */
+  async kickBlocksOf(username: string): Promise<KickBlock[]> {
+    const userKey = username.toLowerCase();
+    const now = new Date();
+    const groups = await this.groups.find({ [`blockedUntil.${userKey}`]: { $gt: now } }).lean();
+    return groups.map(({ name, blockedUntil }) => ({ name, msLeft: blockedUntil![userKey].getTime() - now.getTime() }));
   }
 
   /**
@@ -76,7 +120,7 @@ export class GroupsService implements OnModuleInit {
    * The last Member is refused unless `confirmed`, which deletes the Group, so its history is never wiped without a prompt and a Group is never empty.
    */
   async leave(name: unknown, username: string, confirmed: boolean): Promise<LeaveGroupAck> {
-    const key = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    const key = toKey(name);
     const userKey = username.toLowerCase();
     // One atomic delete that only matches while they are alone: a User who joined first keeps the Group alive, and one joining after finds no Group.
     // Before the wipe, so the history is never lost while the Group has a Member.
@@ -132,6 +176,17 @@ export class GroupsService implements OnModuleInit {
   private async wipeHistory(roomId: string) {
     await Promise.all([this.messages.deleteMany({ roomId }), this.announcements.deleteMany({ roomId })]);
   }
+}
+
+/** The lowercase form of a name a Client sent. Anything but a string becomes '', which matches nothing. */
+function toKey(name: unknown) {
+  return typeof name === 'string' ? name.trim().toLowerCase() : '';
+}
+
+/** `ms` as minutes and seconds, rounded up, e.g. 9:05. */
+function formatTimeLeft(ms: number) {
+  const seconds = Math.max(Math.ceil(ms / 1000), 0);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 function toSharedAnnouncement({ roomId, text, createdAt }: Announcement): SharedAnnouncement {

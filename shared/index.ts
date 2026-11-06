@@ -70,6 +70,19 @@ export type LeaveGroupAck =
   /** `lastMember` means they stay a Member until they ask again with `confirmed`. */
   | { ok: false; error: string; lastMember?: boolean };
 
+/** The payload for kicking a Member out of a Group. */
+export interface KickMemberPayload {
+  name: string;
+  target: string;
+}
+
+/** A Group the User can't join yet, because they were kicked from it. */
+export interface KickBlock {
+  name: string;
+  /** The time left by the server's clock. A Client counts down from this, so its own clock doesn't matter. */
+  msLeft: number;
+}
+
 /** A piece of the bot's reply as it is written. The finished reply then arrives as a normal Message. */
 export interface BotChunk {
   roomId: string;
@@ -91,8 +104,10 @@ export interface Typing {
 export interface ServerToClientEvents {
   /** The names of every Online User, sent to every Client on every connect and disconnect. */
   onlineList: (names: string[]) => void;
-  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join, leave or deletion. */
+  /** Every Group with its Members, oldest first: sent to a Client when it connects and to every Client on every create, join, leave, Kick or deletion. */
   groupList: (groups: GroupSummary[]) => void;
+  /** Every block running on this User, replacing any before: sent to a Client when it connects and to all their Clients when they are kicked. Never sent to anyone else. */
+  kickBlocks: (blocks: KickBlock[]) => void;
   /** A new Message sent into a Room the Client is in. */
   message: (message: Message) => void;
   /** A new Announcement in a Group the Client is in. */
@@ -112,6 +127,8 @@ export interface ClientToServerEvents {
   joinGroup: (name: string, ack: (result: Ack) => void) => void;
   /** Removes the sender, and only the sender, from the Group. The last Member is refused unless `confirmed`, which deletes the Group. */
   leaveGroup: (payload: LeaveGroupPayload, ack: (result: LeaveGroupAck) => void) => void;
+  /** Kicks an offline Member who joined after the sender, and blocks them from joining for 10 minutes. */
+  kickMember: (payload: KickMemberPayload, ack: (result: Ack) => void) => void;
   /** Opens the Private Room between the sender and `targetUsername`, returning the Room id and history. */
   openPrivateRoom: (targetUsername: string, ack: (result: RoomMessagesAck) => void) => void;
   /** Loads the message history for `roomId`. */

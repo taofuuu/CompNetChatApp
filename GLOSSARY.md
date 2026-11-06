@@ -37,12 +37,16 @@ The single Room shared by exactly two Users, the same no matter which of them op
 _Avoid_: DM thread, direct chat
 
 **Group**:
-A Room with a unique name (ignoring case) that any User can join by themselves. It starts with its creator as the only Member. When its last Member leaves, after a warning, the Group is deleted with its Messages and Announcements, and its name is free again.
+A Room with a unique name (ignoring case) that any User can join by themselves, unless a Kick still blocks them. It starts with its creator as the only Member. When its last Member leaves, after a warning, the Group is deleted with its Messages and Announcements, and its name is free again.
 _Avoid_: Channel, chat group, group chat
 
 **Member**:
-A User who has created or joined a Group and hasn't left it. A Member can leave, and while the Group has other Members, can come back with Join and see the full history.
+A User who has created or joined a Group and hasn't left it or been kicked from it. A Member can leave, and while the Group has other Members, can come back with Join and see the full history.
 _Avoid_: Participant, subscriber
+
+**Kick**:
+What a Member does, after a prompt, to an offline Member who joined after them. It removes them the way leaving does and adds "alice kicked bob" to the Room. The block that follows keeps them from joining that Group for 10 minutes, with a countdown only they see. Their past Messages stay. It is limited this way so a stranger can't join a Group whose Members are all offline, kick them all and delete its history by leaving.
+_Avoid_: Ban
 
 **Member Panel**:
 The column beside an open Room showing who is in it: a Group's Members, or both Users of a Private Room, under Online and Offline headings with counts. It never lists bot.

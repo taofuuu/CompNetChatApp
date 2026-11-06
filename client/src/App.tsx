@@ -39,6 +39,8 @@ export function App() {
   const [socket, setSocket] = useState<ChatSocket>();
   const [onlineList, setOnlineList] = useState<string[]>();
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  /** When each Group's block on this User ends, by Group name, on the `performance.now()` clock. */
+  const [kickBlocks, setKickBlocks] = useState<Record<string, number>>({});
   const [activeRoom, setActiveRoom] = useState<{ roomId: string; title: string } | null>(null);
   const activeRoomId = useRef('');
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, HistoryEntry[]>>({});
@@ -97,6 +99,9 @@ export function App() {
     // Listened for here, not in <Groups>, so the list sent right after connecting isn't missed.
     socket.on('groupList', (groups) => {
       setGroups(groups);
+      // A deleted Group's block goes with it, so a new Group with the name has none.
+      // shortcut: a Group deleted and recreated within one list read keeps a false countdown until it ends or the Client reconnects; give Groups an id if Users hit this.
+      setKickBlocks((prev) => Object.fromEntries(Object.entries(prev).filter(([name]) => groups.some((group) => group.name === name))));
       // How every Client of a User who left, or whose Group was deleted, hears it, even one that was disconnected at the time.
       // shortcut: a Room this Client opens just as the User leaves on another stays open until the next list, with sending refused; check membership in showRoom if Users hit this.
       // shortcut: a Client that misses a deletion because the same User recreates the Group while it's disconnected keeps the old unread count until it opens the Room; give Groups an id if Users hit this.
@@ -114,6 +119,11 @@ export function App() {
         activeRoomId.current = '';
         smoothly(() => setActiveRoom(null));
       }
+    });
+    // performance.now(), not Date.now(): a wrong or changed computer clock can't move the countdown.
+    socket.on('kickBlocks', (blocks) => {
+      const receivedAt = performance.now();
+      setKickBlocks(Object.fromEntries(blocks.map(({ name, msLeft }) => [name, receivedAt + msLeft])));
     });
     socket.on('botChunk', ({ roomId, text }) => {
       setBotDrafts((prev) => ({ ...prev, [roomId]: (prev[roomId] ?? '') + text }));
@@ -175,6 +185,17 @@ export function App() {
 
   function openGroupRoom(name: string) {
     if (socket) showRoom(name, socket.timeout(10_000).emitWithAck('loadMessages', groupRoomId(name)));
+  }
+
+  // A prompt, because the Kick is instant and nobody else has to agree.
+  async function kick(groupName: string, member: string) {
+    if (!socket || !confirm(`Kick ${member} from ${groupName}? They can't join again for 10 minutes.`)) return;
+    try {
+      const result = await socket.timeout(10_000).emitWithAck('kickMember', { name: groupName, target: member });
+      setError(result.ok ? '' : result.error);
+    } catch {
+      setError('No answer from the server. Try again.');
+    }
   }
 
   /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
@@ -300,6 +321,7 @@ export function App() {
           me={me}
           activeRoomId={activeRoom?.roomId}
           unreadCounts={unreadCounts}
+          kickBlocks={kickBlocks}
           onOpen={openGroupRoom}
         />
         {/* A login lives only in this page: reloading closes the socket and forgets the password and every Message. */}
@@ -337,6 +359,7 @@ export function App() {
           onlineList={onlineList}
           me={me}
           onOpen={openPrivateRoom}
+          onKick={activeGroup && ((name) => kick(activeGroup.name, name))}
         />
       )}
     </main>
