@@ -87,6 +87,6 @@ export function outcomeOf({ voters, yes, waitingFor }: RunningVote): 'passed' | 
 }
 
 /** A vote as its Group's Members see it. */
-export function toSharedVote({ roomId, starter, target, yes, waitingFor, endsAt }: RunningVote): VoteKick {
-  return { roomId, starter, target, yes, waitingFor: [...waitingFor], msLeft: endsAt - Date.now() };
+export function toSharedVote({ roomId, group, starter, target, voters, yes, waitingFor, endsAt }: RunningVote): VoteKick {
+  return { roomId, group, starter, target, voters, yes, waitingFor: [...waitingFor], msLeft: endsAt - Date.now() };
 }

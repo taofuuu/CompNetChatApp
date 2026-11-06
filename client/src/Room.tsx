@@ -1,9 +1,9 @@
-import type { ClientToServerEvents, HistoryEntry, ServerToClientEvents } from '@compnet/shared';
+import type { ClientToServerEvents, HistoryEntry, Message, ServerToClientEvents } from '@compnet/shared';
 import { type FormEvent, useLayoutEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { Banner } from './Banner';
+import { type AppCommand, COMMAND_HELP, type Command, parseCommand } from './commands';
 import type { Question } from './confirm-popup';
-import { type LiveVoteKick, VoteKickBanner } from './VoteKickBanner';
 
 export const BOT_NAME = 'bot';
 /** A citation as the server writes it, e.g. 📖 Lesson 3 (Transport Layer), slide 42 */
@@ -19,8 +19,6 @@ interface Props {
   subtitle: string;
   /** The Group's name, if this Room is a Group. */
   groupName?: string;
-  /** The Vote Kick running in this Group, if there is one. */
-  voteKick?: LiveVoteKick;
   messages: HistoryEntry[];
   /** The bot's reply so far, empty before its first word, or undefined when it isn't answering. */
   botDraft?: string;
@@ -30,6 +28,8 @@ interface Props {
   me: string;
   /** Asks the User in a popup; true if they said yes. */
   confirm: (question: Question) => Promise<boolean>;
+  /** Runs a Command this Room can't do by itself, and returns why not if it can't be tried. */
+  onCommand: (command: AppCommand) => Promise<string | void>;
 }
 
 function formatTime(isoString: string): string {
@@ -68,10 +68,11 @@ function Dots({ label }: { label: string }) {
  * A Room panel: displays message history in a scrollable message window
  * and provides a text box for sending Messages.
  */
-export function Room({ socket, roomId, title, subtitle, groupName, voteKick, messages, botDraft, typers, me, confirm }: Props) {
+export function Room({ socket, roomId, title, subtitle, groupName, messages, botDraft, typers, me, confirm, onCommand }: Props) {
   const [inputText, setInputText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
   // Only Messages after these rise into view: the history is already there when a Room opens.
   const [historyLength] = useState(messages.length);
   const logRef = useRef<HTMLDivElement>(null);
@@ -91,6 +92,7 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
 
   function type(text: string) {
     setInputText(text);
+    setHelpOpen(false);
     if (text && Date.now() - lastTyping.current >= TYPING_EVERY_MS) {
       lastTyping.current = Date.now();
       // Volatile: dropped while disconnected, not delivered late as if the User were typing then.
@@ -98,8 +100,28 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
     }
   }
 
+  /** Does what a Command asks. It never goes to the server as a Message, and the same refusals and popups apply as for its button. */
+  async function runCommand(command: Command) {
+    setError('');
+    setInputText('');
+    switch (command.name) {
+      case 'help':
+        return setHelpOpen(true);
+      case 'leave':
+        return groupName ? leave(groupName) : setError('/leave only works in a Group.');
+      case 'unsend': {
+        const mine = messages.findLast((entry) => 'sender' in entry && entry.sender.toLowerCase() === me && entry.id && !entry.unsent) as Message | undefined;
+        return mine?.id ? unsend(mine.id) : setError('You have no Message to unsend here.');
+      }
+      default:
+        return setError((await onCommand(command)) ?? '');
+    }
+  }
+
   async function send(event: FormEvent) {
     event.preventDefault();
+    const line = parseCommand(inputText);
+    if (line) return 'error' in line ? setError(line.error) : runCommand(line);
     setBusy(true);
     followsNewest.current = true;
     try {
@@ -129,19 +151,6 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
       setError(result.ok ? '' : result.error);
     } catch {
       setError('No answer from the server. Try again.');
-    }
-  }
-
-  // Busy until the server answers, so a double click can't be refused as a second vote. Its update then takes the buttons away.
-  async function vote(name: string, yes: boolean) {
-    setBusy(true);
-    try {
-      const result = await socket.timeout(10_000).emitWithAck('castVote', { name, yes });
-      setError(result.ok ? '' : result.error);
-    } catch {
-      setError('No answer from the server. Try again.');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -178,8 +187,6 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
           </button>
         )}
       </header>
-
-      {groupName && voteKick && <VoteKickBanner vote={voteKick} me={me} busy={busy} onVote={(yes) => vote(groupName, yes)} />}
 
       <div
         className="message-window"
@@ -257,13 +264,23 @@ export function Room({ socket, roomId, title, subtitle, groupName, voteKick, mes
       </div>
 
       <Banner text={error} />
+      {helpOpen && (
+        <dl className="command-help" aria-label="Commands">
+          {COMMAND_HELP.map(([usage, what]) => (
+            <div key={usage}>
+              <dt>{usage}</dt>
+              <dd>{what}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <form className="message-form" onSubmit={send}>
         {/* readOnly, not disabled: a disabled box would lose focus after every Message. */}
         <input
           aria-label={`Message ${title}`}
           value={inputText}
           onChange={(event) => type(event.target.value)}
-          placeholder={`Message ${title}, or start with @bot to ask bot`}
+          placeholder={`Message ${title}, @bot to ask bot, /help for Commands`}
           readOnly={busy}
           maxLength={1000}
           autoFocus

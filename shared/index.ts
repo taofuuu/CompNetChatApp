@@ -92,8 +92,12 @@ export interface CastVotePayload {
 /** A Vote Kick running in a Group, as its Members see it. */
 export interface VoteKick {
   roomId: string;
+  /** The Group's name. */
+  group: string;
   starter: string;
   target: string;
+  /** How many Members can vote, fixed when the vote starts. Together with `yes` and `waitingFor`, this gives the no count. */
+  voters: number;
   /** The yes votes so far, the starter's included. */
   yes: number;
   /** The lowercase names of the voters who can still vote. A Client shows the buttons only to these. */

@@ -1,4 +1,5 @@
 import type {
+  Ack,
   AuthMode,
   ClientToServerEvents,
   GroupSummary,
@@ -12,13 +13,14 @@ import { type FormEvent, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { io, type Socket } from 'socket.io-client';
 import { Banner } from './Banner';
+import { type AppCommand, voteToCast } from './commands';
 import { useConfirm } from './confirm-popup';
 import { groupRoomId } from './group-room';
 import { Groups } from './Groups';
 import { MemberPanel } from './MemberPanel';
 import { privateRoomId } from './private-room';
 import { BOT_NAME, Room } from './Room';
-import type { LiveVoteKick } from './VoteKickBanner';
+import { type LiveVoteKick, VoteKickBanner } from './VoteKickBanner';
 
 type ChatSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -206,19 +208,35 @@ export function App() {
     if (socket) showRoom(name, socket.timeout(10_000).emitWithAck('loadMessages', groupRoomId(name)));
   }
 
-  async function askToRemove(event: 'kickMember' | 'startVoteKick', groupName: string, member: string) {
-    if (!socket) return;
+  /** Waits for the server's answer and shows why it refused, if it did. True if it agreed. */
+  async function showRefusal(request: Promise<Ack>) {
     try {
-      const result = await socket.timeout(10_000).emitWithAck(event, { name: groupName, target: member });
+      const result = await request;
       setError(result.ok ? '' : result.error);
+      return result.ok;
     } catch {
       setError('No answer from the server. Try again.');
+      return false;
     }
+  }
+
+  async function askToRemove(event: 'kickMember' | 'startVoteKick', groupName: string, member: string) {
+    if (socket) await showRefusal(socket.timeout(10_000).emitWithAck(event, { name: groupName, target: member }));
+  }
+
+  async function castVote(vote: LiveVoteKick, yes: boolean) {
+    if (socket) await showRefusal(socket.timeout(10_000).emitWithAck('castVote', { name: vote.group, yes }));
   }
 
   // A prompt, because the Kick is instant and nobody else has to agree.
   async function kick(groupName: string, member: string) {
     if (await confirm({ title: `Kick ${member}?`, text: `They can't join ${groupName} again for 10 minutes.`, action: 'Kick' })) void askToRemove('kickMember', groupName, member);
+  }
+
+  // For the button only, where a slip starts a public vote nobody can cancel. Typing /kick is already deliberate.
+  async function startVoteKick(groupName: string, member: string) {
+    const question = { title: `Vote to kick ${member}?`, text: `Everyone in ${groupName} sees it for 30 seconds, and it can't be cancelled.`, action: 'Start vote' };
+    if (await confirm(question)) await askToRemove('startVoteKick', groupName, member);
   }
 
   /** Shows the Room the server answered `request` with in the main panel, or the reason it refused. */
@@ -296,6 +314,32 @@ export function App() {
     : activeRoom && onlineList.includes(activeRoom.title)
       ? 'Online'
       : "Offline. They'll see your Messages when they log in.";
+  const runningVotes = Object.values(voteKicks);
+  const voteForKeys = voteToCast(runningVotes, me, activeRoom?.roomId);
+
+  /** Runs a Command, and returns why not if it can't be tried. The Room shows that, beside the text box. */
+  const runCommand = async (command: AppCommand): Promise<string | void> => {
+    switch (command.name) {
+      case 'msg':
+        return openPrivateRoom(command.user);
+      case 'vote':
+        return voteForKeys ? castVote(voteForKeys, command.yes) : 'You have no vote to cast.';
+      case 'join': {
+        // The name as stored, for the Room's title.
+        const name = groups.find((group) => group.name.toLowerCase() === command.group.toLowerCase())?.name ?? command.group;
+        if (await showRefusal(socket.timeout(10_000).emitWithAck('joinGroup', name))) openGroupRoom(name);
+        return;
+      }
+      case 'kick': {
+        if (!activeGroup) return '/kick only works in a Group.';
+        const member = activeGroup.members.find((name) => name.toLowerCase() === command.target.toLowerCase());
+        if (!member) return 'They are not a Member of this Group.';
+        const isOnline = onlineList.some((name) => name.toLowerCase() === member.toLowerCase());
+        return isOnline ? askToRemove('startVoteKick', activeGroup.name, member) : kick(activeGroup.name, member);
+      }
+    }
+  };
+
   return (
     <main className="chat-layout">
       <aside className="sidebar">
@@ -364,12 +408,12 @@ export function App() {
             title={activeRoom.title}
             subtitle={subtitle}
             groupName={activeGroup?.name}
-            voteKick={voteKicks[activeRoom.roomId]}
             messages={messagesByRoom[activeRoom.roomId] || []}
             botDraft={botDrafts[activeRoom.roomId]}
             typers={typers[activeRoom.roomId] || []}
             me={me}
             confirm={confirm}
+            onCommand={runCommand}
           />
         ) : (
           <div className="empty-panel">
@@ -377,6 +421,11 @@ export function App() {
             <p>Click an Online User to open a Private Room, or open a Group you're a Member of.</p>
           </div>
         )}
+        <div className="vote-panels">
+          {runningVotes.map((vote) => (
+            <VoteKickBanner key={vote.roomId} vote={vote} me={me} hasKeys={vote === voteForKeys} onVote={(yes) => castVote(vote, yes)} />
+          ))}
+        </div>
       </section>
 
       {activeRoom && (
@@ -386,7 +435,7 @@ export function App() {
           me={me}
           onOpen={openPrivateRoom}
           onKick={activeGroup && ((name) => kick(activeGroup.name, name))}
-          onVoteKick={activeGroup && ((name) => askToRemove('startVoteKick', activeGroup.name, name))}
+          onVoteKick={activeGroup && ((name) => startVoteKick(activeGroup.name, name))}
         />
       )}
       {confirmPopup}

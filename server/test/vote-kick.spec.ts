@@ -45,8 +45,10 @@ test('starting a vote shows every Member who wants to kick whom, with the starte
   for (const client of [alice, bob, carol]) {
     expect(await client.next('voteKick')).toEqual({
       roomId: '#study',
+      group: 'Study',
       starter: 'Alice',
       target: 'Bob',
+      voters: 2,
       yes: 1,
       waitingFor: ['carol'],
       msLeft: expect.any(Number),
@@ -387,8 +389,10 @@ describe('reaching Members who are not looking:', () => {
 
     expect(await carolAgain.next('voteKick')).toEqual({
       roomId: '#study',
+      group: 'Study',
       starter: 'Alice',
       target: 'Bob',
+      voters: 3,
       yes: 1,
       waitingFor: ['carol', 'dave'],
       msLeft: 18_000,
