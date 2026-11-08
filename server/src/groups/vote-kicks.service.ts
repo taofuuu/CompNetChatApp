@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
-import type { VoteKick } from '@compnet/shared';
+import type { VoteKick, VoteOutcome } from '@compnet/shared';
 import { groupRoomId } from './group-room';
 
 /** How long Members have to vote. */
@@ -18,6 +18,8 @@ export interface RunningVote {
   /** When the vote runs out, by the server's clock. */
   endsAt: number;
   timer: NodeJS.Timeout;
+  /** Set once the result can't change, while it shows before taking effect. */
+  outcome?: VoteOutcome;
 }
 
 /**
@@ -28,6 +30,8 @@ export interface RunningVote {
 export class VoteKicksService implements OnModuleDestroy {
   /** Every running vote, by its Group's Room id. */
   private readonly votes = new Map<string, RunningVote>();
+  /** How long a result shows on every Member's banner before it takes effect. Tests set it to 0. */
+  resultHoldMs = 3_000;
 
   onModuleDestroy() {
     for (const { timer } of this.votes.values()) clearTimeout(timer);
@@ -67,19 +71,27 @@ export class VoteKicksService implements OnModuleDestroy {
   /** Counts `username`'s one vote in the Group named `name`, however many Clients they have. Undefined if they have none to cast. */
   cast(name: unknown, username: string, yes: boolean): RunningVote | undefined {
     const vote = typeof name === 'string' ? this.votes.get(groupRoomId(name)) : undefined;
-    if (!vote?.waitingFor.delete(username.toLowerCase())) return undefined;
+    if (vote?.outcome || !vote?.waitingFor.delete(username.toLowerCase())) return undefined;
     if (yes) vote.yes++;
     return vote;
   }
 
+  /** Fixes `vote`'s result at once, and resolves once it has shown. The vote keeps its Group meanwhile, so no new one starts on top of it. */
+  hold(vote: RunningVote, outcome: VoteOutcome) {
+    vote.outcome = outcome;
+    clearTimeout(vote.timer);
+    return new Promise((resolve) => setTimeout(resolve, this.resultHoldMs));
+  }
+
   end(vote: RunningVote) {
     clearTimeout(vote.timer);
-    this.votes.delete(vote.roomId);
+    // A vote ended early, its target gone, may have a newer vote in its place by the time its hold is up.
+    if (this.votes.get(vote.roomId) === vote) this.votes.delete(vote.roomId);
   }
 }
 
 /** How `vote` ended, or undefined while its result can still change. A strict majority of voters passes. */
-export function outcomeOf({ voters, yes, waitingFor }: RunningVote): 'passed' | 'failed' | undefined {
+export function outcomeOf({ voters, yes, waitingFor }: RunningVote): VoteOutcome | undefined {
   const needed = Math.floor(voters / 2) + 1;
   if (yes >= needed) return 'passed';
   if (yes + waitingFor.size < needed) return 'failed';
@@ -87,6 +99,6 @@ export function outcomeOf({ voters, yes, waitingFor }: RunningVote): 'passed' | 
 }
 
 /** A vote as its Group's Members see it. */
-export function toSharedVote({ roomId, group, starter, target, voters, yes, waitingFor, endsAt }: RunningVote): VoteKick {
-  return { roomId, group, starter, target, voters, yes, waitingFor: [...waitingFor], msLeft: endsAt - Date.now() };
+export function toSharedVote({ roomId, group, starter, target, voters, yes, waitingFor, endsAt, outcome }: RunningVote): VoteKick {
+  return { roomId, group, starter, target, voters, yes, waitingFor: [...waitingFor], msLeft: endsAt - Date.now(), ...(outcome && { outcome }) };
 }

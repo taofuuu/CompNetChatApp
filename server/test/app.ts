@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import type { ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@compnet/shared';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
+import { VoteKicksService } from '../src/groups/vote-kicks.service';
 import { freshDatabaseUri } from './mongo';
 
 type Payload<E extends keyof ServerToClientEvents> = Parameters<ServerToClientEvents[E]>[0];
@@ -27,6 +28,8 @@ export async function startApp() {
     app = await NestFactory.create(AppModule, { logger: false });
     await app.listen(0);
     url = `http://localhost:${(app.getHttpServer().address() as AddressInfo).port}`;
+    // A result takes effect at once, so a test needn't wait out the seconds it shows.
+    app.get(VoteKicksService).resultHoldMs = 0;
   }
 
   function disconnectAll() {

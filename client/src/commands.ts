@@ -53,8 +53,8 @@ export function parseCommand(line: string): Command | { error: string } | undefi
   }
 }
 
-/** The vote F1, F2 and /vote act on: the open Room's if it's waiting for `me`, otherwise the oldest that is. `votes` are oldest first. */
-export function voteToCast<Vote extends Pick<VoteKick, 'roomId' | 'waitingFor'>>(votes: Vote[], me: string, activeRoomId?: string): Vote | undefined {
-  const waiting = votes.filter(({ waitingFor }) => waitingFor.includes(me));
+/** The vote F1, F2 and /vote act on: the open Room's if it's waiting for `me`, otherwise the oldest that is. `votes` are oldest first. A vote showing its result takes no more. */
+export function voteToCast<Vote extends Pick<VoteKick, 'roomId' | 'waitingFor' | 'outcome'>>(votes: Vote[], me: string, activeRoomId?: string): Vote | undefined {
+  const waiting = votes.filter(({ waitingFor, outcome }) => !outcome && waitingFor.includes(me));
   return waiting.find(({ roomId }) => roomId === activeRoomId) ?? waiting[0];
 }

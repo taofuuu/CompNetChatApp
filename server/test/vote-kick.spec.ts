@@ -1,5 +1,6 @@
 import type { ServerToClientEvents } from '@compnet/shared';
 import { GroupsService } from '../src/groups/groups.service';
+import { VoteKicksService } from '../src/groups/vote-kicks.service';
 import type { TestClient } from './app';
 import { startApp } from './app';
 
@@ -117,6 +118,23 @@ test('the count stays one short of passing until the last yes needed', async () 
   await cast(dave, true);
   expect(await bob.next('voteKickEnded')).toBe('#study');
   expect(await erin.next('voteKickEnded')).toBe('#study');
+});
+
+test('a result shows to every Member before it takes effect, taking no more votes and holding off a new vote', async () => {
+  const [alice, bob, carol] = await groupOf('Alice', 'Bob', 'Carol', 'Dave');
+  app.app.get(VoteKicksService).resultHoldMs = 300;
+  await voteOn(alice, 'Bob');
+  await bob.next('voteKick');
+
+  const deciding = cast(carol, true);
+
+  expect(await bob.next('voteKick')).toMatchObject({ outcome: 'passed', yes: 2, waitingFor: ['dave'] });
+  expect(await cast(alice, false)).toEqual(noVote);
+  expect(await voteOn(carol, 'Dave')).toEqual({ ok: false, error: 'A vote is already running in this Group.' });
+  expect(await history(alice)).toEqual([]);
+  await deciding;
+  expect(await bob.next('voteKickEnded')).toBe('#study');
+  expect(await history(alice)).toEqual(['Bob was voted out, 2 of 3 votes, started by Alice']);
 });
 
 test('a vote that passes removes the target on all their Clients, with the 10-minute block', async () => {

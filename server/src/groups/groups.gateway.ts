@@ -147,11 +147,14 @@ export class GroupsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { ok: true };
   }
 
-  /** Ends `vote` if its result can't change, and otherwise tells its Group how it stands. */
+  /** Tells `vote`'s Group how it stands. Once its result can't change, shows that for a few seconds, then ends it and does what it says. */
   private async settle(vote: RunningVote) {
     const { group, roomId, starter, target, yes, voters } = vote;
     const outcome = outcomeOf(vote);
-    if (!outcome) return void this.server.to(roomId).emit('voteKick', toSharedVote(vote));
+    const shown = outcome && this.voteKicks.hold(vote, outcome);
+    this.server.to(roomId).emit('voteKick', toSharedVote(vote));
+    if (!outcome) return;
+    await shown;
     this.voteKicks.end(vote);
     this.server.to(roomId).emit('voteKickEnded', roomId);
     if (outcome === 'failed') {
@@ -179,7 +182,8 @@ export class GroupsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** What a Member no longer being in the Group means for its vote: a vote on them is cancelled, and otherwise, if they hadn't voted, they count as no. */
   private async memberGone(username: string, groupName: string) {
     const vote = this.voteKicks.runningIn(groupRoomId(groupName));
-    if (!vote) return;
+    // A result already showing stands. Once it's up, a target who left is found gone, and no Announcement follows.
+    if (!vote || vote.outcome) return;
     const key = username.toLowerCase();
     if (vote.target.toLowerCase() === key) {
       this.voteKicks.end(vote);

@@ -104,7 +104,11 @@ export interface VoteKick {
   waitingFor: string[];
   /** The time left by the server's clock. A Client counts down from this, so its own clock doesn't matter. */
   msLeft: number;
+  /** Set once the result can't change. The vote then shows its result for a few seconds, takes no more votes, and `voteKickEnded` follows. */
+  outcome?: VoteOutcome;
 }
+
+export type VoteOutcome = 'passed' | 'failed';
 
 /** A piece of the bot's reply as it is written. The finished reply then arrives as a normal Message. */
 export interface BotChunk {
@@ -133,7 +137,7 @@ export interface ServerToClientEvents {
   kickBlocks: (blocks: KickBlock[]) => void;
   /** A Vote Kick running in a Group the Client is in: sent when it starts, on every vote, when a Client connects and when its User joins the Group. Never sent to anyone else. */
   voteKick: (vote: VoteKick) => void;
-  /** The Vote Kick in the Group with this Room id is over, however it ended. */
+  /** The Vote Kick in the Group with this Room id is over, however it ended. After a result, sent once its few seconds of showing are up, just before the kick. */
   voteKickEnded: (roomId: string) => void;
   /** A Vote Kick removed this User from the Group named here. Sent to all their Clients. */
   votedOut: (groupName: string) => void;

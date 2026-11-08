@@ -683,10 +683,14 @@ input:focus-visible {
   font-size: 0.85rem;
 }
 
-.vote-panel header {
+.vote-body {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 0.5rem;
+}
+
+.vote-body p {
   font-weight: 600;
 }
 
@@ -694,28 +698,123 @@ input:focus-visible {
   color: var(--muted);
 }
 
-.vote-countdown {
-  font-variant-numeric: tabular-nums;
+/* The result, held for a few seconds before it takes effect. */
+.vote-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.15rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 1rem;
+  font-weight: 700;
+  animation: pop var(--calm) var(--ease);
 }
 
+.vote-passed {
+  border-left-color: var(--online);
+}
+
+.vote-passed .vote-timer span {
+  background: var(--online);
+}
+
+/* Check on top, cross below, each with its count to the right. */
 .vote-answers {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-  margin-top: 0.3rem;
+  gap: 0.3rem;
+  flex: none;
 }
 
-.vote-answers .button {
-  padding: 0.2rem 0.4rem;
-  font-size: 0.82rem;
-}
-
-.vote-answers kbd {
-  padding: 0 0.25rem;
-  border: 1px solid currentColor;
-  border-radius: 4px;
+.vote-answers > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 3.2rem;
+  padding: 0.1rem 0.2rem;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+}
+
+.vote-answers button {
+  cursor: pointer;
+  transition: background-color var(--quick);
+}
+
+.vote-answers button:hover {
+  background: var(--hover);
+}
+
+.vote-answers button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.vote-panel footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.vote-panel footer kbd,
+.vote-panel footer b {
+  font: inherit;
+  font-weight: 700;
+}
+
+.vote-timer {
+  height: 4px;
+  margin-top: 0.35rem;
+  background: var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vote-timer span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+
+.vote-yes {
+  color: var(--online);
+}
+
+.vote-no {
+  color: var(--accent);
+}
+
+.vote-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  background: currentColor;
+}
+
+.vote-yes .vote-mark {
+  border-radius: 4px;
+}
+
+.vote-no .vote-mark {
+  border-radius: 50%;
+}
+
+.vote-mark svg {
+  width: 80%;
+  height: 80%;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .command-help {
