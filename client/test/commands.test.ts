@@ -53,3 +53,11 @@ test('the keys act on the open Room vote that waits for the viewer, otherwise th
   assert.equal(voteToCast([voted], 'alice', '#voted'), undefined);
   assert.equal(voteToCast([], 'alice', '#lab'), undefined);
 });
+
+test('the keys skip a vote showing its result, though it still lists the viewer', () => {
+  const decided = { roomId: '#decided', waitingFor: ['alice'], outcome: 'passed' as const };
+  const lab = { roomId: '#lab', waitingFor: ['alice'] };
+
+  assert.equal(voteToCast([decided, lab], 'alice', '#decided'), lab);
+  assert.equal(voteToCast([decided], 'alice'), undefined);
+});
