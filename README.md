@@ -1,6 +1,7 @@
 # CompNet Chat App
 
 [![CI](https://github.com/taofuuu/CompNetChatApp/actions/workflows/ci.yml/badge.svg)](https://github.com/taofuuu/CompNetChatApp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/taofuuu/CompNetChatApp)](https://github.com/taofuuu/CompNetChatApp/releases/latest)
 ![Status](https://img.shields.io/badge/status-released-brightgreen)
 [![Live demo](https://img.shields.io/badge/demo-live-46E3B7?logo=render&logoColor=white)](https://compnetchatapp.onrender.com)
@@ -15,6 +16,8 @@ A real-time, multi-user web chat app built for the Computer Networks term projec
 
 **Live demo:** https://compnetchatapp.onrender.com
 
+![A Group chat with four Online Members, Announcements, and a bot reply](docs/images/group-chat.png)
+
 ## Features
 
 - **Accounts.** Register and log in with a username (unique ignoring case) and a hashed password. One User can be logged in on several Clients at once.
@@ -27,6 +30,8 @@ A real-time, multi-user web chat app built for the Computer Networks term projec
 - **Kick and Vote Kick.**
   - **Kick:** a Member can kick an offline Member who joined after them.
   - **Vote Kick:** with at least 3 Members Online, any Member can start a 30-second vote against an Online Member. Members vote with F1 (yes) and F2 (no), and a strict majority removes the target. A kicked User can't rejoin that Group for 10 minutes.
+  ![A Vote Kick in progress, with F1 for yes and F2 for no](docs/images/vote-kick.png)
+
 - **Commands.** Type `/help` in any Room to see them all:
 
   | Command | Does |
@@ -115,3 +120,7 @@ GLOSSARY.md  The domain words (User, Client, Room, Group, Vote Kick, ...)
 ## How it was built
 
 A team of four built the app ticket by ticket from [GitHub Issues](../../issues). Every change was its own pull request, had to pass CI, and needed a teammate's approval. AI coding tools (Claude Code and chat assistants) wrote code against [GLOSSARY.md](GLOSSARY.md) and the ADRs, and each pull request description records the prompt that was used.
+
+## License
+
+[MIT](LICENSE)
