@@ -1,46 +1,106 @@
 # CompNet Chat App
 
-Computer Networks term project (socket programming): a multi-user Chat App with Private Rooms and Groups, built with NestJS, React and Socket.IO over WebSocket only.
+A real-time, multi-user web chat app built for the Computer Networks term project on socket programming. Every Client talks to one central server over a WebSocket (Socket.IO, WebSocket transport only), so people on different computers can chat with each other live. An AI tutor, **bot**, answers course questions and cites the lecture slides it used.
+
+**Live demo:** https://compnetchatapp.onrender.com
+
+## Features
+
+- **Accounts.** Register and log in with a username (unique ignoring case) and a hashed password. One User can be logged in on several Clients at once.
+- **Online List.** Everyone sees who is Online right now, updated live.
+- **Private Rooms.** A one-to-one Room between two Users, with its full history.
+- **Groups.** Create a Group or join any Group by name, and see its whole history, even from before you joined. A Group is deleted, after a warning, when its last Member leaves.
+- **Announcements.** The Room shows lines such as "bob joined the Group" and "alice kicked bob".
+- **Member Panel.** Shows who is in the open Room, split into Online and Offline.
+- **Typing indicator, unread counts, and Unsend.** You can unsend your own Messages at any time.
+- **Kick and Vote Kick.**
+  - **Kick:** a Member can kick an offline Member who joined after them.
+  - **Vote Kick:** with at least 3 Members Online, any Member can start a 30-second vote against an Online Member. Members vote with F1 (yes) and F2 (no), and a strict majority removes the target. A kicked User can't rejoin that Group for 10 minutes.
+- **Commands.** Type `/help` in any Room to see them all:
+
+  | Command | Does |
+  |---|---|
+  | `/msg name` | Open the Private Room with an Online User |
+  | `/join Group` | Join a Group and open it |
+  | `/leave` | Leave this Group |
+  | `/kick name` | Start a Vote Kick, or Kick an offline Member |
+  | `/vote yes`, `/vote no` | Vote in a Vote Kick |
+  | `/unsend` | Unsend your last Message here |
+  | `@bot question` | Ask bot, in a Message everyone in the Room sees |
+
+- **bot, the AI tutor.** Start a Message with `@bot` in any Room. bot reads the Room's recent Messages, looks up the relevant Slides from the course's Lessons, streams its answer, and cites up to two Slides, for example "Lesson 3 (Transport Layer), slide 42".
+
+## Tech stack
+
+| Part | Built with |
+|---|---|
+| Server | NestJS 11, Socket.IO gateways, Mongoose |
+| Client | React 19, Vite |
+| Shared | One TypeScript package with the socket event names and payload types |
+| Database | MongoDB (Atlas) |
+| AI | Any OpenAI-compatible API (Typhoon by default) |
+| CI / hosting | GitHub Actions, Render |
+
+Chat traffic uses the WebSocket transport only, with no fallback to HTTP long-polling. [ADR 0001](docs/adr/0001-socketio-websocket-only.md) explains why.
 
 ## Running it
 
-Needs Node 22 or later. Three npm workspaces: `server` (NestJS), `client` (React + Vite) and `shared` (the socket event names and payload types both use).
+You need Node 22 or later and a MongoDB connection string.
 
 ```bash
 npm install
 ```
 
-Copy `server/.env.example` to `server/.env` and put the MongoDB connection string in it. Never commit `.env`.
+Copy `server/.env.example` to `server/.env` and fill in:
 
-**Development**, in two terminals: `npm run dev -w server`, then `npm run dev -w client` and open the address Vite prints. Vite forwards the socket connection to the server.
+- `MONGODB_URI`: the MongoDB connection string.
+- `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`: the AI behind bot. Without these the app still runs, and bot replies that it is unavailable.
+- `PORT`: optional, defaults to 3000.
 
-**Demo or another laptop**: `npm run build`, then `npm start`. The server serves the page and the socket connection on one port (3000, or `PORT`). Other laptops on the same network open `http://<this laptop's IP>:3000`.
+Never commit `.env`.
 
-**Checks**: `npm run lint`, `npm run build` and `npm test`, the same as CI. The server's tests boot the whole app against an in-memory MongoDB and connect real Clients; `server/test/app.ts` has the `connectAsUser` helper to reuse.
+**Development.** Run each command in its own terminal, then open the address Vite prints:
 
-## Where decisions live
+```bash
+npm run dev -w server
+```
 
-- [GLOSSARY.md](GLOSSARY.md): the words we use. Use these names in code, issues and prompts.
-- [docs/adr/](docs/adr/): decisions that must not be quietly undone.
-- [GitHub Issues](../../issues): the spec and the tickets. Each ticket is meant to be enough on its own to start work.
+```bash
+npm run dev -w client
+```
 
-## Working with an AI
+**Production or a LAN demo.** Build, then start:
 
-Whichever AI you use, the code passes the same gate: a pull request that passes CI and gets one teammate's approval.
+```bash
+npm run build
+```
 
-**Claude Code** reads `CLAUDE.md`, `GLOSSARY.md` and `docs/` by itself, and can read issues with `gh`. Point it at the ticket: "implement issue #N".
+```bash
+npm start
+```
 
-**A chat AI** (ChatGPT, Claude.ai, Gemini, ...) can't see the repo, so you give it the context:
+The server serves both the page and the socket connection on one port. Other laptops on the same network open `http://<this laptop's IP>:3000`.
 
-1. Once: create a Project in your chat app and upload `GLOSSARY.md`, every file in `docs/adr/`, and the spec issue. Re-upload when they change, and add the shared event types once the `shared/` folder exists.
-2. Per ticket: paste the ticket's body and the files you're changing.
-3. Don't accept code that renames glossary terms or contradicts an ADR; tell the AI to fix it.
+**Loading the Slides for bot.** The lecture PDFs are never committed, because the repo is public. Load them into the database by hand:
 
-**Both:** paste the prompt you used into the PR description. The slides need it.
+```bash
+npm run slides:ingest -w server -- <folder of Lesson PDFs>
+```
 
-## Workflow
+## Checks
 
-- One branch and one pull request per ticket. `main` only changes through pull requests.
-- CI must pass and a teammate must approve before merging.
-- Review across tools when you can: a Claude Code user reviews a chat-AI user's PR, and the other way round.
-- Merging to `main` deploys to Render once the cloud-hosting ticket sets it up.
+`npm run lint`, `npm run build` and `npm test` run the same checks as CI. The server tests start the whole app against an in-memory MongoDB and connect real socket Clients. Every merge to `main` that passes CI deploys to Render.
+
+## Project layout
+
+```
+server/   NestJS app: users, online-list, messages, groups, bot, slides
+client/   React app
+shared/   Socket event names and payload types used by both
+docs/adr/ Decisions that must not be quietly undone
+GLOSSARY.md  The domain words (User, Client, Room, Group, Vote Kick, ...)
+```
+
+## How it was built
+
+A team of four built the app ticket by ticket from [GitHub Issues](../../issues). Every change was its own pull request, had to pass CI, and needed a teammate's approval. AI coding tools (Claude Code and chat assistants) wrote code against [GLOSSARY.md](GLOSSARY.md) and the ADRs, and each pull request description records the prompt that was used.
