@@ -1,5 +1,16 @@
 # CompNet Chat App
 
+[![CI](https://github.com/taofuuu/CompNetChatApp/actions/workflows/ci.yml/badge.svg)](https://github.com/taofuuu/CompNetChatApp/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/taofuuu/CompNetChatApp)](https://github.com/taofuuu/CompNetChatApp/releases/latest)
+![Status](https://img.shields.io/badge/status-released-brightgreen)
+[![Live demo](https://img.shields.io/badge/demo-live-46E3B7?logo=render&logoColor=white)](https://compnetchatapp.onrender.com)
+
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![NestJS](https://img.shields.io/badge/NestJS-E0234E?logo=nestjs&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
+![Socket.IO](https://img.shields.io/badge/Socket.IO-010101?logo=socketdotio&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?logo=mongodb&logoColor=white)
+
 A real-time, multi-user web chat app built for the Computer Networks term project on socket programming. Every Client talks to one central server over a WebSocket (Socket.IO, WebSocket transport only), so people on different computers can chat with each other live. An AI tutor, **bot**, answers course questions and cites the lecture slides it used.
 
 **Live demo:** https://compnetchatapp.onrender.com
